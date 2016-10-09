@@ -1,4 +1,4 @@
-% Used for HKUST ELEC 6910P 
+% Used for HKUST ELEC 6910P
 
 close all;
 clear all;
@@ -16,7 +16,7 @@ path1 = [0.0 0.0 1.0 ; ...
          -1.0 8.0 1.0 ; ...
          1.0 9.0 1.0 ; ...
          0.0 10.0 1.0 ; ];
-     
+
 path2 = [0.5 0.5 1.0 ; ...
         2.0 0.5 1.0 ; ...
        2.0 2.0 1.0 ; ...
@@ -26,9 +26,9 @@ path2 = [0.5 0.5 1.0 ; ...
         2.0 2.0 1.0 ; ...
         0.5 2.0 1.0 ; ...
         0.5 0.5 1.0 ];
-    
 
-    
+
+
 
 h1 = subplot(3,3,1);
 h2 = subplot(3,3,2);
@@ -43,6 +43,14 @@ set(gcf, 'Renderer', 'painters');
 set(gcf, 'Position', [100, 100, 1400, 1000]);
 % set(gcf, 'WindowStyle','Modal');
 
+% insert the global variables we need to use
+global phi_c_storage
+global theta_c_storage
+global error_sum
+
+phi_c_storage    = 0;
+theta_c_storage  = 0;
+error_sum = zeros(6,1);
 
 % Trajectory Generator
 trajectory_generator([], path1, h1);
