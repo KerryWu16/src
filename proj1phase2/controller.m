@@ -3,8 +3,12 @@ function [F, M] = controller(t, s, s_des)
 %%%% Sui Pang, Sept. 28th, 2016, ELEC 6910P, Project 1, phase 1
 
 global params
-global phi_c_storage
-global theta_c_storage
+persistent phi_c_storage;
+persistent theta_c_storage;
+persistent error_sum;
+phi_c_storage    = 0;
+theta_c_storage  = 0;
+error_sum = zeros(6,1);
 
 m = params.mass;
 g = params.grav;
@@ -70,7 +74,7 @@ RMS_X_v = sqrt(sum(s(4)-s_des(4)).^2);
 RMS_Y_v = sqrt(sum(s(5)-s_des(5)).^2);
 RMS_Z_v = sqrt(sum(s(6)-s_des(6)).^2);
 [RMS_X, RMS_Y, RMS_Z, RMS_X_v, RMS_Y_v, RMS_Z_v]
-global error_sum
+
 error_sum(1) = error_sum(1) + RMS_X;
 error_sum(2) = error_sum(2) + RMS_Y;
 error_sum(3) = error_sum(3) + RMS_Z;

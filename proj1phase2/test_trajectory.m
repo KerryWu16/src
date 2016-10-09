@@ -43,15 +43,6 @@ set(gcf, 'Renderer', 'painters');
 set(gcf, 'Position', [100, 100, 1400, 1000]);
 % set(gcf, 'WindowStyle','Modal');
 
-% insert the global variables we need to use
-global phi_c_storage
-global theta_c_storage
-global error_sum
-
-phi_c_storage    = 0;
-theta_c_storage  = 0;
-error_sum = zeros(6,1);
-
 % Trajectory Generator
 trajectory_generator([], path1, h1);
 
