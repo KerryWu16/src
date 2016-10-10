@@ -59,8 +59,8 @@ elseif psi_angle_diff <= -pi
    psi_angle_diff = psi_angle_diff + 2 * pi;
 end
 
-phi_c_acc   = K_p_phi   * (phi_c_ns   - phi_ns)   + K_d_phi   * ((phi_c_ns - phi_c_ps)     - s(11)) ;
-theta_c_acc = K_p_theta * (theta_c_ns - theta_ns) + K_d_theta * ((theta_c_ns - theta_c_ps) - s(12)) ;
+phi_c_acc   = K_p_phi   * (phi_c_ns   - phi_ns)   + K_d_phi   * ((phi_c_ns - phi_c_ps)     - s(11));
+theta_c_acc = K_p_theta * (theta_c_ns - theta_ns) + K_d_theta * ((theta_c_ns - theta_c_ps) - s(12));
 psi_c_acc   = K_p_psi   * psi_angle_diff          + K_d_psi   * (s_des(13)                 - s(13));
 
 % Output 2, roll pitch yaw output
@@ -73,7 +73,7 @@ RMS_Z = sqrt(sum(s(3)-s_des(3)).^2);
 RMS_X_v = sqrt(sum(s(4)-s_des(4)).^2);
 RMS_Y_v = sqrt(sum(s(5)-s_des(5)).^2);
 RMS_Z_v = sqrt(sum(s(6)-s_des(6)).^2);
-[RMS_X, RMS_Y, RMS_Z, RMS_X_v, RMS_Y_v, RMS_Z_v]
+        [RMS_X, RMS_Y, RMS_Z, RMS_X_v, RMS_Y_v, RMS_Z_v];
 
 error_sum(1) = error_sum(1) + RMS_X;
 error_sum(2) = error_sum(2) + RMS_Y;
@@ -81,5 +81,5 @@ error_sum(3) = error_sum(3) + RMS_Z;
 error_sum(4) = error_sum(4) + RMS_X_v;
 error_sum(5) = error_sum(5) + RMS_Y_v;
 error_sum(6) = error_sum(6) + RMS_Z_v;
-error_sum'
+        error_sum';
 end

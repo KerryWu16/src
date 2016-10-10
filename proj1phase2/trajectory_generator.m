@@ -1,62 +1,124 @@
 %%%% Sui Pang, Oct. 8th, 2016, ELEC 6910P, Project 1, phase 2
-%%%% Smooth Multi-segment Trajectory Generation
+%%%% Optimization-based Trajectory Generation
 
 function s_des = trajectory_generator(t, path, h)
 
-persistent N;
-persistent T;
-persistent C;
-persistent x;
-persistent y;
-persistent z;
-persistent n;
 R = 6; % orders
 
 if nargin > 1 % pre-process can be done here (given waypoints)
   % local variables
-  T_total = 25; % if the curve takes 25 seconds to process
   N = size(path, 1) - 1; % number of segment, one less then the setpoints
-  T = zeros(N+1, 1); % time duration of each section
-  C = zeros(N, R, 3);   % N set of polynomial constants
-  x = path(:,1);
-  y = path(:,2);
-  z = path(:,3);
+  T = zeros(N+1, 1); % time periods
+  Qx = zeros(N*(R+1)); % a set of all Qpresent state
+  Qy = zeros(N*(R+1));
+  Qz = zeros(N*(R+1));
 
-  % Calculate the time periods
-  l = 0; % total length
+
+  l = 0; % totoal length
   for i = 2:1:N+1
     l = l + sqrt((path(i,1) - path(i-1,1))^2 + (path(i,2) - path(i-1,2))^2 + (path(i,3) - path(i-1,3))^2);
   end
-  v = l/T_total; % velocity
+  v = l/25; % velocity
   for i = 2:1:N+1
-    T(i) = sqrt((path(i,1) - path(i-1,1))^2 + (path(i,2) - path(i-1,2))^2 + (path(i,3) - path(i-1,3))^2)/v;
+    T(i) = T(i-1) + sqrt((path(i,1) - path(i-1,1))^2 + (path(i,2) - path(i-1,2))^2 + (path(i,3) - path(i-1,3))^2)/v;
   end
 
-  % trajectory planning
-  Q = zeros(6);
-  A = zeros(6,3);
-
-  for n=1:N+1  % Strange parrallel processing kicked in
-      if n < N+1
-        Q = [ 0         0         0         0       0     1; ...
-              T(n)^5    T(n)^4    T(n)^3    T(n)^2  T(n)  1; ...
-              0         0         0         0       1     0; ...
-              5*T(n)^4  4*T(n)^3  3*T(n)^2  2*T(n)  1     0; ...
-              0         0         0         2       0     0; ...
-              20*T(n)^3 12*T(n)^2 6*T(n)    2       0     0];
-        A = [ x(n) x(n+1) 0 0 0 0; ...
-              y(n) y(n+1) 0 0 0 0; ...
-              z(n) z(n+1) 0 0 0 0; ]';
+  % Calculate the cost function and construct the Hessian matrix Q
+  for n = 1:1:N
+    for i = 4:1:R
+      for j = 4:1:R
+        Qx(i+1 + (n-1)*(R+1), j+1 + (n-1)*(R+1)) = i*(i-1)*(i-2)*(i-3)*j*(j-1)*(j-2)*(j-3)*((T(n+1)-T(n))^(i+j-7)) / (i+j-7);
       end
-
-      if n>1
-          C(n-1,:,:) = Q \ A
-      end
+    end
   end
-  n = 1;
+  for n = 1:1:N
+    for i = 4:1:R
+      for j = 4:1:R
+        Qy(i+1 + (n-1)*(R+1), j+1 + (n-1)*(R+1)) = i*(i-1)*(i-2)*(i-3)*j*(j-1)*(j-2)*(j-3)*((T(n+1)-T(n))^(i+j-7)) / (i+j-7);
+      end
+    end
+  end
+  for n = 1:1:N
+    for i = 4:1:R
+      for j = 4:1:R
+        Qz(i+1 + (n-1)*(R+1), j+1 + (n-1)*(R+1)) = i*(i-1)*(i-2)*(i-3)*j*(j-1)*(j-2)*(j-3)*((T(n+1)-T(n))^(i+j-7)) / (i+j-7);
+      end
+    end
+  end
+
+  % Build waypoints
+  x   = path(:,1);
+  y   = path(:,2);
+  z   = path(:,3);
+  % waypoints constraints
+  A1x = zeros(2*N, N*(R+1)); % mapping matrix
+  d1x = zeros(2*N, 1); % vector contains the derivative values
+  A1y = zeros(2*N, N*(R+1));
+  d1y = zeros(2*N, 1);
+  A1z = zeros(2*N, N*(R+1));
+  d1z = zeros(2*N, 1);
+  % continuity constraints
+  A2x = zeros(2*(N-1), N*(R+1)); % mapping matrix
+  d2x = zeros(2*(N-1), 1); % TODO: figure out the length
+  A2y = zeros(2*(N-1), N*(R+1));
+  d2y = zeros(2*(N-1), 1);
+  A2z = zeros(2*(N-1), N*(R+1));
+  d2z = zeros(2*(N-1), 1);
+  % start and the final constraints
+  A3x = zeros(2, N*(R+1));
+  d3x = zeros(2, 1); % TODO: figure out the length
+  A3y = zeros(2, N*(R+1));
+  d3y = zeros(2, 1);
+  A3z = zeros(2, N*(R+1));
+  d3z = zeros(2, 1);
+
+  % waypoints constraints
+  for n=1:N
+    for i=0:1:R
+      A1x(1+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n)   - T(n))^i; %TODO: check if its T(n-1)
+      A1x(2+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n+1) - T(n))^i;
+      d1x(1+(n-1)*2, i+1+(n-1)*(R+1)) = x(n);
+      d1x(2+(n-1)*2, i+1+(n-1)*(R+1)) = x(n+1);
+    end
+  end
+  for n=1:N
+    for i=0:1:R
+      A1y(1+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n)   - T(n))^i; %TODO: check if its T(n-1)
+      A1y(2+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n+1) - T(n))^i;
+      d1y(1+(n-1)*2, i+1+(n-1)*(R+1)) = y(n);
+      d1y(2+(n-1)*2, i+1+(n-1)*(R+1)) = y(n+1);
+    end
+  end
+  for n=1:N
+    for i=0:1:R
+      A1z(1+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n)   - T(n))^i; %TODO: check if its T(n-1)
+      A1z(2+(n-1)*2, i+1+(n-1)*(R+1)) = (T(n+1) - T(n))^i;
+      d1z(1+(n-1)*2, i+1+(n-1)*(R+1)) = z(n);
+      d1z(2+(n-1)*2, i+1+(n-1)*(R+1)) = z(n+1);
+    end
+  end
+
+  % % continuity constraints
+  % for n=1:N-1
+  %   for i=1:R
+  %     A2x() = (factorial(i)/factorial(i-k))*(T(m+1) - T(m))^(i-k);
+  %   end
+  % end
+  %
+  % Ax = [A1x;A2x;A3x];
+  % dx = [d1x;d2x;d3x];
+  % Ay = [A1y;A2y;A3y];
+  % dy = [d1y;d2y;d3y];
+  % Az = [A1z;A2z;A3z];
+  % dz = [d1z;d2z;d3z];
+  %
+  % % min 0.5 P'QP s.t. Aeq * x = deq
+  % [Px, vx] = quadprog(Qx,[],[],[],Ax,dx);
+  % [Py, vy] = quadprog(Qy,[],[],[],Ay,dy);
+  % [Pz, vz] = quadprog(Qz,[],[],[],Az,dz);
 
 else % output desired trajectory here (given time)
-  s_des = zeros(13,1);
+  s_des(1:13) = zeros(13,1);
   ax = 0;
   ay = 0;
   yaw   = 0;
@@ -64,34 +126,16 @@ else % output desired trajectory here (given time)
   roll  = 0;
   quat = R_to_quaternion(ypr_to_R([yaw pitch roll])');
   s_des(7:10) = quat;
-
-  for j=1:N
-    if t >= T(j) && t < T(j+1)
-      n = j; break; % really strange Matlab
-    end
-  end
-  r_record = zeros(N);
-  v_record = zeros(N);
-  for k=1:n
-    Cx(:,:) = C(:,:,1);
-    x_r_part =  Cx(n,1)*(t-T(k))^5 + Cx(n,2)*(t-T(k))^4 + Cx(n,3)*(t-T(k))^3 + ...
-                Cx(n,4)*(t-T(k))^2 + Cx(n,5)*(t-T(k))^1 + Cx(n,6)*(t-T(k));
-    x_v_part =  5*Cx(n,1)*(t-T(k))^4 + 4*Cx(n,2)*(t-T(k))^3 + 3*Cx(n,3)*(t-T(k))^2 + ...
-                2*Cx(n,4)*(t-T(k))^1 + Cx(n,5)*(t-T(k)) + 0;
-    if k == 1
-      r_record(k) = x_r_part;
-      v_record(k) = x_v_part;
-    else
-      r_record(k) = r_record(k-1) + x_r_part;
-      v_record(k) = v_record(k-1) + x_v_part;
-    end
-  end
-  s_des(1) = r_record(n);
-  s_des(2) = y(1);
-  s_des(3) = z(1);
-  s_des(4) = v_record(n);
-  s_des(5) = 0;
-  s_des(6) = 0;
+  % for i=1:N
+  %   if t>=T(i)&&t<T(i+1)
+  %     n = i;
+  %     break;
+  %   end
+  % end
+  % for i=0:1:R
+  %   s_des(1) = s_des(1) + Px(i+1+(n-1)*(R+1))*(t-T(n))^i;
+  %
+  % end
 end
 
 end
