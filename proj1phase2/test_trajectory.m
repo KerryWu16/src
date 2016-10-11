@@ -63,9 +63,14 @@ h9 = subplot(3,3,9);
 set(gcf, 'Renderer', 'painters');
 set(gcf, 'Position', [100, 100, 1400, 1000]);
 % set(gcf, 'WindowStyle','Modal');
+global Q;
+global A;
+global Qx;
+global Ax;
+global dx;
 
 % Trajectory Generator
-trajectory_generator([], path4, h1);
+trajectory_generator([], path1, h1);
 
 % Run Trajectory
 run_trajectory_readonly(h1, h2, h3, h4, h5, h6, h7, h8, h9);

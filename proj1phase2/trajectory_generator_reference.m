@@ -5,7 +5,10 @@ persistent T;
 persistent Px;
 persistent Py;
 persistent Pz;
-R = 6;  %order
+global Qx;
+global Ax;
+global dx;
+R = 7;  %order
 if nargin > 1 % pre-process can be done here (given waypoints). Pre-define the entire trajectory.
 
 M = size(path,1) - 1; % num of segment
