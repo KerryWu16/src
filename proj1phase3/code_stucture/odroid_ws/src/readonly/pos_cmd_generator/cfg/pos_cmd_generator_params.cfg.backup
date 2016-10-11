@@ -1,0 +1,18 @@
+#! /usr/bin/env python
+
+PACKAGE='pos_cmd_generator'
+#import roslib
+#oslib.load_manifest(PACKAGE)
+
+from dynamic_reconfigure.parameter_generator_catkin import *
+
+gen = ParameterGenerator()
+#       Name       Type      Level Description     Default Min   Max
+gen.add("KPx",    double_t,    0,    "KPx.",        10.0,   0.0, 30.0)
+gen.add("KPy",    double_t,    0,    "KPy.",        10.0,   0.0, 30.0)
+gen.add("KPz",    double_t,    0,    "KPz.",        15.0,   0.0, 30.0)
+gen.add("KVx",    double_t,    0,    "KVx.",        6.0,    0.0, 30.0)
+gen.add("KVy",    double_t,    0,    "KVy.",        6.0,    0.0, 30.0)
+gen.add("KVz",    double_t,    0,    "KVz.",        12.0,   0.0, 30.0)
+
+exit(gen.generate(PACKAGE, "pos_cmd_generator", "pos_cmd_generator_params"))

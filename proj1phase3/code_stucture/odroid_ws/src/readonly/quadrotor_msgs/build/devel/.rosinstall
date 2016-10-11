@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/odroid/odroid_ws/src/quadrotor_msgs/build/devel/setup.sh

@@ -1,0 +1,11 @@
+Header      header
+uint64      time_usec
+uint32      fix_type
+uint32      lat
+uint32      lon
+uint32      alt
+uint32      eph
+uint32      epv
+uint32      vel
+uint32      cog
+uint32      satellites_visible

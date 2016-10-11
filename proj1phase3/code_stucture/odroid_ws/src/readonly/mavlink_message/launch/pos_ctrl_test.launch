@@ -1,0 +1,12 @@
+<launch>
+    <!-- Node -->
+    <node pkg="mavlink_message" type="set_pos" name="set_pos" output="screen">
+    <rosparam file="$(find mavlink_message)/config/set_pos_param.yaml"/>
+    <remap from="~odom" to="/monocular_ukf/odom"/>
+    </node>
+
+    <node pkg="mavlink_message" type="so3_control" name="so3_control" output="screen">
+    <remap from="~odom" to="/monocular_ukf/odom"/>
+    <remap from="~des_pos" to="/set_pos/des_pos"/>
+    </node>
+</launch>

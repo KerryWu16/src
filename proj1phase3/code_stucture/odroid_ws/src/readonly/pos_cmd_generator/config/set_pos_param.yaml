@@ -1,0 +1,7 @@
+ThrustGain: 30.0
+Mass:   1.10
+CycleTest: false 
+CycleR: 1.0
+CycleV: 2.0
+YawVel: 2.0
+RCVel:  2.0

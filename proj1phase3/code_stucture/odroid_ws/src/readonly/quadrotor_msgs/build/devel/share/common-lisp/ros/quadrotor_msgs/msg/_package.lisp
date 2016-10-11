@@ -1,0 +1,25 @@
+(cl:defpackage quadrotor_msgs-msg
+  (:use )
+  (:export
+   "<CORRECTIONS>"
+   "CORRECTIONS"
+   "<SO3COMMAND>"
+   "SO3COMMAND"
+   "<AUXCOMMAND>"
+   "AUXCOMMAND"
+   "<GAINS>"
+   "GAINS"
+   "<PPROUTPUTDATA>"
+   "PPROUTPUTDATA"
+   "<TRPYCOMMAND>"
+   "TRPYCOMMAND"
+   "<STATUSDATA>"
+   "STATUSDATA"
+   "<OUTPUTDATA>"
+   "OUTPUTDATA"
+   "<POSITIONCOMMAND>"
+   "POSITIONCOMMAND"
+   "<SERIAL>"
+   "SERIAL"
+  ))
+

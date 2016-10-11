@@ -1,0 +1,7 @@
+set(_CATKIN_CURRENT_PACKAGE "quadrotor_msgs")
+set(quadrotor_msgs_MAINTAINER "Kartik Mohta <todo@todo.todo>")
+set(quadrotor_msgs_DEPRECATED "")
+set(quadrotor_msgs_VERSION "0.0.0")
+set(quadrotor_msgs_BUILD_DEPENDS "geometry_msgs" "nav_msgs" "message_generation")
+set(quadrotor_msgs_RUN_DEPENDS "geometry_msgs" "nav_msgs" "message_runtime")
+set(quadrotor_msgs_BUILDTOOL_DEPENDS "catkin")

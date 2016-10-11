@@ -1,0 +1,10 @@
+4S: 
+    Mass:   2.03 
+    ThrustGain: 36
+5S: 
+    Mass:   2.3
+    ThrustGain: 46
+0S:
+    Mass: 16.5
+    ThrustGain: 46
+

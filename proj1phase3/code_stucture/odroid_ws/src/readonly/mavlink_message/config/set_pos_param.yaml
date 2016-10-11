@@ -1,0 +1,10 @@
+KPx: 4.17
+KPy: 4.17
+KPz: 6.42
+KVx: 3.33
+KVy: 3.33
+KVz: 4.1
+ThrustGain: 55.7
+Mass: 1.75
+TuningPID: true
+PorV: false
