@@ -4,7 +4,9 @@ close all;
 clear all;
 clc;
 addpath('./utils','./readonly');
-
+global Q;
+global A;
+global dx;
 path1 = [0.0 0.0 1.0 ; ...
          1.0 1.0 1.0 ; ...
          -1.0 2.0 1.0 ; ...
@@ -26,7 +28,7 @@ path2 = [0.5 0.5 1.0 ; ...
         2.0 2.0 1.0 ; ...
         0.5 2.0 1.0 ; ...
         0.5 0.5 1.0 ];
-    
+
 % self made trajectory
 path3 =[0.5 0.5 1.0 ; ...
         2.0 0.5 2.0 ; ...
@@ -49,8 +51,6 @@ path4 =[0.0 0.0 0.0 ; ...
         0.0 0.0 0.0 ];
 
 
-
-
 h1 = subplot(3,3,1);
 h2 = subplot(3,3,2);
 h3 = subplot(3,3,3);
@@ -63,11 +63,8 @@ h9 = subplot(3,3,9);
 set(gcf, 'Renderer', 'painters');
 set(gcf, 'Position', [100, 100, 1400, 1000]);
 % set(gcf, 'WindowStyle','Modal');
-global Q;
-global A;
-global Qx;
-global Ax;
-global dx;
+global error_sum;
+error_sum = zeros(6,1);
 
 % Trajectory Generator
 trajectory_generator([], path1, h1);

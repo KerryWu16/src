@@ -6,15 +6,16 @@
 function s_des = trajectory_generator(t, path, h)
 s_des = zeros(13,1);
 % Global variables within this function
+global Q;
+global A;
+global dx;
 persistent M;
+persistent m;
 persistent T;
 persistent Px;
 persistent Py;
 persistent Pz;
 R = 8; % orders
-global Q;
-global A;
-global dx;
 
 if nargin > 1
     % local variables
@@ -132,7 +133,7 @@ else % output desired trajectory here (given time)
     end
 
     for i=0:1:R-1
-        s_des(1) = s_des(1) + Px(i+1+(m-1)*R)*(t-T(m))^i
+        s_des(1) = s_des(1) + Px(i+1+(m-1)*R)*(t-T(m))^i;
         s_des(2) = s_des(2) + Py(i+1+(m-1)*R)*(t-T(m))^i;
         s_des(3) = s_des(3) + Pz(i+1+(m-1)*R)*(t-T(m))^i;
         if i > 0

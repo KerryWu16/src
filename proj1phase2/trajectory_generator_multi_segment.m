@@ -5,14 +5,13 @@ function s_des = trajectory_generator(t, path, h)
 
 % Global variables within this function
 persistent N;
+persistent n;
 persistent T;
 persistent C;
-persistent r_record;
-persistent v_record;
 
 if nargin > 1 % pre-process can be done here (given waypoints)
     % local variables
-    R = 8; % orders
+    R = 6; % orders
     T_total = 25; % the curve takes 25 seconds to process
     N = size(path, 1) - 1; % number of segment, one less then the setpoints
     T_each = zeros(N+1, 1); % time period of each section

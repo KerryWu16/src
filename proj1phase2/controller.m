@@ -5,10 +5,9 @@ function [F, M] = controller(t, s, s_des)
 global params
 persistent phi_c_storage;
 persistent theta_c_storage;
-persistent error_sum;
+global error_sum;
 phi_c_storage    = 0;
 theta_c_storage  = 0;
-error_sum = zeros(6,1);
 
 m = params.mass;
 g = params.grav;
@@ -81,5 +80,5 @@ error_sum(3) = error_sum(3) + RMS_Z;
 error_sum(4) = error_sum(4) + RMS_X_v;
 error_sum(5) = error_sum(5) + RMS_Y_v;
 error_sum(6) = error_sum(6) + RMS_Z_v;
-        error_sum';
+        error_sum'
 end
