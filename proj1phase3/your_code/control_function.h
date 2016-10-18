@@ -37,7 +37,7 @@ void SO3Control_function( const double des_pos[3],
 {
 	rpy[2] = 0.0;
 	rpy[1] = 0.0;
-	rpy[0] = 0.0;	
+	rpy[0] = 0.11;	
 	target_thrust = Mass*(Gravity + des_acc[3]);       
 }
 #endif
