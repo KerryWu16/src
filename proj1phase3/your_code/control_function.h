@@ -51,6 +51,7 @@ void SO3Control_function( const double des_pos[3],
 	rpy[0] = (r_acc[0] * sin(now_yaw) - r_acc[1] * cos(now_yaw)) / Gravity;	
 	rpy[1] = (r_acc[0] * cos(now_yaw) + r_acc[1] * sin(now_yaw)) / Gravity;
 	rpy[2] = 0.0;
+
 	target_thrust = Mass*(Gravity + r_acc[2]);       
 }
 #endif
