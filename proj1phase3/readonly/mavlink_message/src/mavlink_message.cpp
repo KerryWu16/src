@@ -302,7 +302,7 @@ int main(int argc, char **argv)
     set_att_sub         = mavhandle.subscribe("set_att", 1000, set_att_Callback);
 
     /* default values for arguments */
-    char *uart_name = (char*)"/dev/mavlink";
+    char *uart_name = (char*)"/dev/ttyTHS2";
     int baudrate = 115200;
     const char *commandline_usage = "\tusage: %s -d <devicename> -b <baudrate> [-v/--verbose] [--debug]\n\t\tdefault: -d %s -b %i\n";
     /* read program arguments */
