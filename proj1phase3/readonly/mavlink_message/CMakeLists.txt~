@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(pos_vel_mocap)
+project(mavlink_message)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 set(DCMAKE_BUILD_TYPE "release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -march=armv8-a")
+set(CMAKE_CXX_FLAGS "-std=c++11 -march=native")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -fPIC")
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -52,10 +52,19 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-#add_message_files(
-#   FILES
-#   #   Message2.msg
-#)
+add_message_files(
+   FILES
+   PositionCommand.msg
+   set_att_offboard.msg
+   imu_raw.msg
+   rc_chans.msg
+   att_onboard.msg
+   local_position.msg
+   quad_state.msg
+   gps_raw.msg
+   rpy.msg
+   #   Message2.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -72,14 +81,14 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-#generate_messages(
-#  DEPENDENCIES
-#  std_msgs 
-#  geometry_msgs 
-#  nav_msgs
-#  sensor_msgs
-#  tf
-#)
+generate_messages(
+  DEPENDENCIES
+  std_msgs 
+  geometry_msgs 
+  nav_msgs
+  sensor_msgs
+  tf
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -97,13 +106,21 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-INCLUDE_DIRECTORIES( include
+include(cmake/FindGLIB2.cmake)
+include(cmake/FindGTHREAD2.cmake)
+FIND_PACKAGE(GLIB2  REQUIRED)
+FIND_PACKAGE(GTHREAD2  REQUIRED)
+
+INCLUDE_DIRECTORIES(
     ${MAVLINK_INCLUDE_DIR}
+    ${GLIB2_MAIN_INCLUDE_DIR}
+    ${GLIB2_INTERNAL_INCLUDE_DIR}
+    ${GTHREAD2_MAIN_INCLUDE_DIR}
 )
 ###########
 ## Build ##
@@ -112,14 +129,23 @@ INCLUDE_DIRECTORIES( include
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
+include_directories( include  ${catkin_INCLUDE_DIRS}  
+    )
 
-#add_dependencies(mavlink_message  
-#	mavlink_message_generate_messages_cpp
-#)
+add_executable(mavlink_message src/mavlink_message.cpp)
+target_link_libraries(   
+    mavlink_message  
+    ${catkin_LIBRARIES} 
+    ${GLIB2_LIBRARY}
+    ${GTHREAD2_LIBRARY}
+)
+add_dependencies(mavlink_message  
+	mavlink_message_generate_messages_cpp
+)
 
-
-add_executable(pos_vel_mocap src/pos_vel_mocap.cpp)
-target_link_libraries(pos_vel_mocap ${catkin_LIBRARIES})
+#add_executable(so3_control src/so3_controller.cpp )
+#target_link_libraries(so3_control ${catkin_LIBRARIES} )
+#add_dependencies(so3_control mavlink_message_generate_messages_cpp)
 
 ## Declare a cpp library
 # add_library(mavlink_message
