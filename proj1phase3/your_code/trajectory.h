@@ -1,6 +1,7 @@
 #ifndef trajectory_h
 #define trajectory_h
 #include <stdio.h>
+#include <math.h>
 
 using namespace Eigen;
 
@@ -40,12 +41,12 @@ bool trajectory_control(const double dT,
     const int v_limit = 0.5;  // maximum velocity
     const int M = 4; // number of waypoints
     //your code // please use coefficients from matlab to get desired states
-    const double path1[3*M] = {0.0, 0.0, 0.0, ...
-                        1.0, 0.0, 0.0, ...
-                        0.0, 0.0, 0.0, ...
+    const double path1[3*M] = {0.0, 0.0, 0.0, \
+                        1.0, 0.0, 0.0, \
+                        0.0, 0.0, 0.0, \
                         -1.0, 0.0, 0.0};
     const double T[M] = {0.0, 5.0, 10.0, 15.0};
-    const double Px[R*M] = 0;
+    const double Px[R*M] = {0};
 
     // pre-process, using multi-segment first,
     // with trajectory generated offline
@@ -53,21 +54,22 @@ bool trajectory_control(const double dT,
 
     // calculate the output
     std::cout << "Time: " << dT << ".\n";
-    for (int j = 1; j < M+1; i++) {
+    int m = 0;
+    for (int j = 1; j < M+1; j++) {
         if (dT >= T[j] && dT < T[j+1]) {
             m = j; break;
         }
     }
 
     for (int i = 0; i < R; i++) {
-        desired_p[0] = desired_p[0] + Px[i+1+(m-1)*R] * (dT-T[m])^i;
+        desired_p[0] = desired_p[0] + Px[i+1+(m-1)*R] * pow((dT-T[m]), i);
 
         if (i > 0) {
-            desired_v[0] = desired_v[0] + i * Px[i+1+(m-1)*R] * (dT-T[m])^(i-1);
+            desired_v[0] = desired_v[0] + i * Px[i+1+(m-1)*R] * pow((dT-T[m]), (i-1));
 
         }
         if (i > 1) {
-            desired_a[0] = desired_a[0] + i*(i-1) * Px[i+1+(m-1)*R] * (dT-T[m])^(i-2);
+            desired_a[0] = desired_a[0] + i*(i-1) * Px[i+1+(m-1)*R] * pow((dT-T[m]), (i-2));
         }
     }
 
