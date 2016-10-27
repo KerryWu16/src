@@ -47,9 +47,11 @@ bool trajectory_control(const double dT,
                                0.0, 0.0, 0.0, \
                               -1.0, 0.0, 0.0};
     const double T[M] = {0.0, 5.0, 10.0, 15.0};
-    const double Px[R*M] = {0};
-    const double Py[R*M] = {0};
-    const double Pz[R*M] = {0};
+    const double Px[R*(M-1)] = { 0,      0,      0, 0.0416, -0.0109,  0.0010, -0.0000, -0.0000,\
+                            1.0000, 0.1790, -0.0694,-0.0150,  0.0041, -0.0003, 0.0000, -0.0000,\
+	                         0,-0.4183,  0.0002,0.0163,  -0.0003, -0.0004, 0.0000,  0.0000};
+    const double Py[R*(M-1)] = {0};
+    const double Pz[R*(M-1)] = {0};
 
     // pre-process, using multi-segment first,
     // with trajectory generated offline
@@ -100,4 +102,4 @@ bool trajectory_control(const double dT,
 
     return true; // if you have got desired states, true.
 }
-
+#endif
