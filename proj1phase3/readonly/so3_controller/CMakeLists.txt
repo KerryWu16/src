@@ -5,7 +5,7 @@ project(so3_controller)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 set(DCMAKE_BUILD_TYPE "release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -march=armv8-a")
+set(CMAKE_CXX_FLAGS "-std=c++11 -march=native")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -fPIC")
 find_package(catkin REQUIRED COMPONENTS
   roscpp
