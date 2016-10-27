@@ -19,7 +19,7 @@ using namespace Eigen;
  * true  -> you have alread configured desired states
  * false -> no desired state
  */
-bool trajectory_control(const double dT, 
+bool trajectory_control(const double dT,
         const Vector3d hover_pos,
         const Vector3d now_vel,
         Vector3d & desired_pos,
@@ -27,8 +27,8 @@ bool trajectory_control(const double dT,
         Vector3d & desired_acc
         )
 {
-    //if you don't want to use Eigen, then you can use these arrays
-    //or you can delete them and use Eigen
+    // //if you don't want to use Eigen, then you can use these arrays
+    // //or you can delete them and use Eigen
     double hover_p[3], now_v[3], desired_p[3], desired_v[3], desired_a[3];
     hover_p[0] = hover_pos.x();
     hover_p[1] = hover_pos.y();
@@ -36,9 +36,42 @@ bool trajectory_control(const double dT,
     now_v[0] = now_vel.x();
     now_v[1] = now_vel.y();
     now_v[2] = now_vel.z();
+    const int R = 8; // Using R - 1 th order polynomial for the trajectory
+    const int v_limit = 0.5;  // maximum velocity
+    const int M = 4; // number of waypoints
     //your code // please use coefficients from matlab to get desired states
+    const double path1[3*M] = {0.0, 0.0, 0.0, ...
+                        1.0, 0.0, 0.0, ...
+                        0.0, 0.0, 0.0, ...
+                        -1.0, 0.0, 0.0};
+    const double T[M] = {0.0, 5.0, 10.0, 15.0};
+    const double Px[R*M] = 0;
 
-    //output
+    // pre-process, using multi-segment first,
+    // with trajectory generated offline
+
+
+    // calculate the output
+    std::cout << "Time: " << dT << ".\n";
+    for (int j = 1; j < M+1; i++) {
+        if (dT >= T[j] && dT < T[j+1]) {
+            m = j; break;
+        }
+    }
+
+    for (int i = 0; i < R; i++) {
+        desired_p[0] = desired_p[0] + Px[i+1+(m-1)*R] * (dT-T[m])^i;
+
+        if (i > 0) {
+            desired_v[0] = desired_v[0] + i * Px[i+1+(m-1)*R] * (dT-T[m])^(i-1);
+
+        }
+        if (i > 1) {
+            desired_a[0] = desired_a[0] + i*(i-1) * Px[i+1+(m-1)*R] * (dT-T[m])^(i-2);
+        }
+    }
+
+    // //output
     desired_pos.x() = desired_p[0];
     desired_pos.y() = desired_p[1];
     desired_pos.z() = desired_p[2];
