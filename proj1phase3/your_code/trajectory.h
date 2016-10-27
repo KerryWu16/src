@@ -47,6 +47,8 @@ bool trajectory_control(const double dT,
                         -1.0, 0.0, 0.0};
     const double T[M] = {0.0, 5.0, 10.0, 15.0};
     const double Px[R*M] = {0};
+    const double Py[R*M] = {0};
+    const double Pz[R*M] = {0};
 
     // pre-process, using multi-segment first,
     // with trajectory generated offline
