@@ -58,14 +58,12 @@ bool trajectory_control(const double dT,
 
 
     // calculate the output
-    std::cout << "Time: " << dT << ".\n";//print in C++
     int m = 0;
     for (int j = 0; j < M; j++) {
         if (dT >= T[j] && dT < T[j+1]) {
             m = j; break;
         }
     }
-
 	desired_p[0] = 0;
 	desired_p[1] = 0;
 	desired_p[2] = 0;
@@ -87,7 +85,14 @@ bool trajectory_control(const double dT,
             desired_a[0] = 0;
             desired_a[1] = 0;
 	    desired_a[2] = 0;
-
+    	std::cout << "Time: " << dT << ".\n";//print in C++
+	std::cout << "period: " << m << "\n";    
+      	std::cout << "x: " << desired_p[0] << "\n";     
+        std::cout << "y: " << desired_p[1] << "\n";
+        std::cout << "z: " << desired_p[2] << "\n";
+        std::cout << "x_v: " << desired_v[0] << "\n";
+        std::cout << "y_v: " << desired_v[1] << "\n";
+        std::cout << "z_v: " << desired_v[2] << "\n";
     /*************************************************************************/
     // //output
     desired_pos.x() = desired_p[0];
