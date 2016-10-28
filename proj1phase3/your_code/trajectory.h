@@ -57,45 +57,42 @@ bool trajectory_control(const double dT,
     // with trajectory generated offline
 
 
-    // calculate the output 
+    // calculate the output
     int m = 0;
+    int t = 0;
     if (dT > T[M-1]) {
-	desired_p[0] = hover_p[0];
-	desired_p[1] = hover_p[1];
-	desired_p[2] = hover_p[2];
-        desired_v[0]=0;
-	desired_v[0]=0;
-        desired_v[2]=0;
+      	t = T[M-1];
     } else {
+        t = dT;
         for (int j = 0; j < M; j++) {
-            if (dT >= T[j] && dT < T[j+1]) {
+            if (t >= T[j] && t < T[j+1]) {
                 m = j; break;
             }
         }
     	std::cout << "period: " << m << "\n";
-        desired_p[0] = 0;
-        desired_p[1] = 0;
-        desired_p[2] = 0;
+        desired_p[0] = hover_p[0];
+        desired_p[1] = hover_p[1];
+        desired_p[2] = hover_p[2];
         for (int i = 0; i < R; i++) {
-            desired_p[0] = desired_p[0] + Px[i+m*R] * pow((dT-T[m]), i);
-            desired_p[1] = desired_p[1] + Py[i+m*R] * pow((dT-T[m]), i);
-            desired_p[2] = desired_p[2] + Pz[i+m*R] * pow((dT-T[m]), i);
+            desired_p[0] = desired_p[0] + Px[i+m*R] * pow((t-T[m]), i);
+            desired_p[1] = desired_p[1] + Py[i+m*R] * pow((t-T[m]), i);
+            desired_p[2] = desired_p[2] + Pz[i+m*R] * pow((t-T[m]), i);
             if (i == 0) {
                 desired_v[0]=0;
                 desired_v[1]=0;
                 desired_v[2]=0;
             }
             if (i > 0) {
-                desired_v[0] = desired_v[0] + i * Px[i+m*R] * pow((dT-T[m]), (i-1));
-                desired_v[1] = desired_v[1] + i * Py[i+m*R] * pow((dT-T[m]), (i-1));
-                desired_v[2] = desired_v[2] + i * Pz[i+m*R] * pow((dT-T[m]), (i-1));
+                desired_v[0] = desired_v[0] + i * Px[i+m*R] * pow((t-T[m]), (i-1));
+                desired_v[1] = desired_v[1] + i * Py[i+m*R] * pow((t-T[m]), (i-1));
+                desired_v[2] = desired_v[2] + i * Pz[i+m*R] * pow((t-T[m]), (i-1));
             }
         }
     }
     desired_a[0] = 0;
     desired_a[1] = 0;
     desired_a[2] = 0;
-    
+
     std::cout << "Time: " << dT << ".\n";//print in C++
     std::cout << "x: " << desired_p[0] << "\n";
     std::cout << "y: " << desired_p[1] << "\n";
