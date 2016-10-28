@@ -60,9 +60,9 @@ bool trajectory_control(const double dT,
     // calculate the output 
     int m = 0;
     if (dT > T[M-1]) {
-	desired_p[0] = hover_pos.x();
-	desired_p[1] = hover_pos.y();
-	desired_p[2] = hover_pos.z();
+	desired_p[0] = hover_p[0];
+	desired_p[1] = hover_p[1];
+	desired_p[2] = hover_p[2];
         desired_v[0]=0;
 	desired_v[0]=0;
         desired_v[2]=0;
@@ -100,6 +100,9 @@ bool trajectory_control(const double dT,
     std::cout << "x: " << desired_p[0] << "\n";
     std::cout << "y: " << desired_p[1] << "\n";
     std::cout << "z: " << desired_p[2] << "\n";
+    std::cout << "pos_x: " << hover_p[0] << "\n";
+    std::cout << "pos_y: " << hover_p[1] << "\n";
+    std::cout << "pos_z: " << hover_p[2] << "\n";
     std::cout << "x_v: " << desired_v[0] << "\n";
     std::cout << "y_v: " << desired_v[1] << "\n";
     std::cout << "z_v: " << desired_v[2] << "\n";
