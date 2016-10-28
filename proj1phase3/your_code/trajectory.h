@@ -56,20 +56,26 @@ bool trajectory_control(const double dT,
     // pre-process, using multi-segment first,
     // with trajectory generated offline
 
-
     // calculate the output
     int m = 0;
-    int t = 0;
+    double t = 0;
     if (dT > T[M-1]) {
       	t = T[M-1];
+	m = M-1;
+	desired_p[0] = hover_p[0] + path1[3*M-3];
+	desired_p[1] = hover_p[1] + path1[3*M-2];
+	desired_p[2] = hover_p[2] + path1[3*M-1];
+	desired_v[0] = 0;
+	desired_v[1] = 0;
+	desired_v[2] = 0;
     } else {
         t = dT;
-        for (int j = 0; j < M; j++) {
+	for (int j = 0; j < M; j++) {
             if (t >= T[j] && t < T[j+1]) {
                 m = j; break;
             }
         }
-    	std::cout << "period: " << m << "\n";
+        std::cout << "period: " << m << "\n";
         desired_p[0] = hover_p[0];
         desired_p[1] = hover_p[1];
         desired_p[2] = hover_p[2];
@@ -88,11 +94,14 @@ bool trajectory_control(const double dT,
                 desired_v[2] = desired_v[2] + i * Pz[i+m*R] * pow((t-T[m]), (i-1));
             }
         }
+
     }
+
     desired_a[0] = 0;
     desired_a[1] = 0;
     desired_a[2] = 0;
 
+    std::cout << "Time used: " << t << ".\n";//print in C++
     std::cout << "Time: " << dT << ".\n";//print in C++
     std::cout << "x: " << desired_p[0] << "\n";
     std::cout << "y: " << desired_p[1] << "\n";
