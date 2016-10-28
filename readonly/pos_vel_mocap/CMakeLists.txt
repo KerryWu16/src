@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(so3_controller)
+project(pos_vel_mocap)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -96,26 +96,14 @@ catkin_package(
    CATKIN_DEPENDS roscpp rospy std_msgs message_runtime geometry_msgs nav_msgs sensor_msgs tf
 #  DEPENDS system_lib
 )
-
-find_package(Eigen3 REQUIRED)
-include_directories( 
-    ../../your_code
-    include
-    ${EIGEN3_INCLUDE_DIR}
-    )
-
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
 
-include(cmake/FindGLIB2.cmake)
-include(cmake/FindGTHREAD2.cmake)
-FIND_PACKAGE(GLIB2  REQUIRED)
-FIND_PACKAGE(GTHREAD2  REQUIRED)
 
-INCLUDE_DIRECTORIES(
+
+INCLUDE_DIRECTORIES( include
     ${MAVLINK_INCLUDE_DIR}
-    ${GLIB2_MAIN_INCLUDE_DIR}
-    ${GLIB2_INTERNAL_INCLUDE_DIR}
-    ${GTHREAD2_MAIN_INCLUDE_DIR}
 )
 ###########
 ## Build ##
@@ -130,11 +118,8 @@ INCLUDE_DIRECTORIES(
 #)
 
 
-add_executable( so3_control src/so3_controller.cpp )
-target_link_libraries( so3_control ${catkin_LIBRARIES} )
-
-add_executable( so3_control_lite src/so3_control_lite.cpp )
-target_link_libraries( so3_control_lite ${catkin_LIBRARIES} )
+add_executable(pos_vel_mocap src/pos_vel_mocap.cpp)
+target_link_libraries(pos_vel_mocap ${catkin_LIBRARIES})
 
 ## Declare a cpp library
 # add_library(mavlink_message

@@ -90,7 +90,7 @@ add_library(encode_msgs src/encode_msgs.cpp)
 
 add_dependencies(encode_msgs quadrotor_msgs_generate_messages_cpp)
 add_dependencies(decode_msgs quadrotor_msgs_generate_messages_cpp)
-
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
