@@ -57,18 +57,22 @@ bool trajectory_control(const double dT,
     // with trajectory generated offline
 
 
-    // calculate the output
-    if (dT > T[M]) {
+    // calculate the output 
+    int m = 0;
+    if (dT > T[M-1]) {
+	desired_p[0] = hover_pos.x();
+	desired_p[1] = hover_pos.y();
+	desired_p[2] = hover_pos.z();
         desired_v[0]=0;
-        desired_v[1]=0;
+	desired_v[0]=0;
         desired_v[2]=0;
     } else {
-        int m = 0;
         for (int j = 0; j < M; j++) {
             if (dT >= T[j] && dT < T[j+1]) {
                 m = j; break;
             }
         }
+    	std::cout << "period: " << m << "\n";
         desired_p[0] = 0;
         desired_p[1] = 0;
         desired_p[2] = 0;
@@ -93,7 +97,6 @@ bool trajectory_control(const double dT,
     desired_a[2] = 0;
     
     std::cout << "Time: " << dT << ".\n";//print in C++
-    std::cout << "period: " << m << "\n";
     std::cout << "x: " << desired_p[0] << "\n";
     std::cout << "y: " << desired_p[1] << "\n";
     std::cout << "z: " << desired_p[2] << "\n";
