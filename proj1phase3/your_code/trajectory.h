@@ -42,14 +42,14 @@ bool trajectory_control(const double dT,
     const int M = 4; // number of waypoints
     //your code // please use coefficients from matlab to get desired states
     /***********************************************************************/
-    const double path1[3*M] = {0.0, 0.0, 0.0, \
-                               1.0, 0.0, 0.0, \
-                               0.0, 0.0, 0.0, \
-                              -1.0, 0.0, 0.0};
+    const double path1[3*M] = { 0.0, 0.0, 0.0, \
+                                1.0, 0.0, 0.0, \
+                                0.0, 0.0, 0.0, \
+                                -1.0, 0.0, 0.0};
     const double T[M] = {0.0, 3.3333, 6.6667, 10};
-    const double Px[R*(M-1)] = { 0,       0,      0,  0.0660,    0,  -0.0066,  0.0011,   0,\
-                                 1,  0.3313,-0.2172, -0.0045,    0,   0.0019,       0,   0,\
-	                               0, -0.6379, 0.0428,  0.0299,    0,  -0.0012,       0,   0};
+    const double Px[R*(M-1)] = {  0,       0,      0,  0.0660,    0,  -0.0066,  0.0011,   0,\
+                                  1,  0.3313,-0.2172, -0.0045,    0,   0.0019,       0,   0,\
+                                  0, -0.6379, 0.0428,  0.0299,    0,  -0.0012,       0,   0};
     const double Py[R*(M-1)] = {0};
     const double Pz[R*(M-1)] = {0};
 
@@ -58,41 +58,48 @@ bool trajectory_control(const double dT,
 
 
     // calculate the output
-    int m = 0;
-    for (int j = 0; j < M; j++) {
-        if (dT >= T[j] && dT < T[j+1]) {
-            m = j; break;
+    if (dT > T[M]) {
+        desired_v[0]=0;
+        desired_v[1]=0;
+        desired_v[2]=0;
+    } else {
+        int m = 0;
+        for (int j = 0; j < M; j++) {
+            if (dT >= T[j] && dT < T[j+1]) {
+                m = j; break;
+            }
+        }
+        desired_p[0] = 0;
+        desired_p[1] = 0;
+        desired_p[2] = 0;
+        for (int i = 0; i < R; i++) {
+            desired_p[0] = desired_p[0] + Px[i+m*R] * pow((dT-T[m]), i);
+            desired_p[1] = desired_p[1] + Py[i+m*R] * pow((dT-T[m]), i);
+            desired_p[2] = desired_p[2] + Pz[i+m*R] * pow((dT-T[m]), i);
+            if (i == 0) {
+                desired_v[0]=0;
+                desired_v[1]=0;
+                desired_v[2]=0;
+            }
+            if (i > 0) {
+                desired_v[0] = desired_v[0] + i * Px[i+m*R] * pow((dT-T[m]), (i-1));
+                desired_v[1] = desired_v[1] + i * Py[i+m*R] * pow((dT-T[m]), (i-1));
+                desired_v[2] = desired_v[2] + i * Pz[i+m*R] * pow((dT-T[m]), (i-1));
+            }
         }
     }
-	desired_p[0] = 0;
-	desired_p[1] = 0;
-	desired_p[2] = 0;
-    for (int i = 0; i < R; i++) {
-        desired_p[0] = desired_p[0] + Px[i+m*R] * pow((dT-T[m]), i);
-        desired_p[1] = desired_p[1] + Py[i+m*R] * pow((dT-T[m]), i);
-	desired_p[2] = desired_p[2] + Pz[i+m*R] * pow((dT-T[m]), i);
-	if (i == 0) {
-	   desired_v[0]=0;
-	   desired_v[1]=0;
-	   desired_v[2]=0;
-	   }
-        if (i > 0) {
-            desired_v[0] = desired_v[0] + i * Px[i+m*R] * pow((dT-T[m]), (i-1));
-            desired_v[1] = desired_v[1] + i * Py[i+m*R] * pow((dT-T[m]), (i-1));
-	    desired_v[2] = desired_v[2] + i * Pz[i+m*R] * pow((dT-T[m]), (i-1));
-	    }
-    }
-            desired_a[0] = 0;
-            desired_a[1] = 0;
-	    desired_a[2] = 0;
-    	std::cout << "Time: " << dT << ".\n";//print in C++
-	std::cout << "period: " << m << "\n";    
-      	std::cout << "x: " << desired_p[0] << "\n";     
-        std::cout << "y: " << desired_p[1] << "\n";
-        std::cout << "z: " << desired_p[2] << "\n";
-        std::cout << "x_v: " << desired_v[0] << "\n";
-        std::cout << "y_v: " << desired_v[1] << "\n";
-        std::cout << "z_v: " << desired_v[2] << "\n";
+    desired_a[0] = 0;
+    desired_a[1] = 0;
+    desired_a[2] = 0;
+    
+    std::cout << "Time: " << dT << ".\n";//print in C++
+    std::cout << "period: " << m << "\n";
+    std::cout << "x: " << desired_p[0] << "\n";
+    std::cout << "y: " << desired_p[1] << "\n";
+    std::cout << "z: " << desired_p[2] << "\n";
+    std::cout << "x_v: " << desired_v[0] << "\n";
+    std::cout << "y_v: " << desired_v[1] << "\n";
+    std::cout << "z_v: " << desired_v[2] << "\n";
     /*************************************************************************/
     // //output
     desired_pos.x() = desired_p[0];
