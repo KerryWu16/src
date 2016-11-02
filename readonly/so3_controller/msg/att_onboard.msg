@@ -1,0 +1,9 @@
+Header          header
+uint32          time_boot_ms
+float32         roll
+float32         pitch
+float32         yaw
+float32         rollspeed
+float32         pitchspeed
+float32         yawspeed
+geometry_msgs/Quaternion Q_b2w

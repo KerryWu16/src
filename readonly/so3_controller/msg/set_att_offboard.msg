@@ -1,0 +1,13 @@
+Header header
+int32 time_boot_ms
+float32 q1
+float32 q2
+float32 q3
+float32 q4
+float32 body_roll_rate
+float32 body_pitch_rate
+float32 body_yaw_rate
+float32 thrust
+uint8 target_system
+uint8 target_component
+uint8 type_mask
