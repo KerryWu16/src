@@ -1,0 +1,12 @@
+Header      header
+uint32      time_boot_ms
+uint16      chan1_raw
+uint16      chan2_raw
+uint16      chan3_raw
+uint16      chan4_raw
+uint16      chan5_raw
+uint16      chan6_raw
+uint16      chan7_raw
+uint16      chan8_raw
+uint8       port
+uint8       rssi

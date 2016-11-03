@@ -1,0 +1,10 @@
+Header  header
+uint64  time_usec
+geometry_msgs/Vector3   acceleration
+geometry_msgs/Vector3   angular_velocity
+geometry_msgs/Vector3   compass
+float32     abs_pressure
+float32     diff_pressure
+float32     pressure_alt
+float32     temperature
+uint16      fields_updated
