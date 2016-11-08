@@ -96,7 +96,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // H = K (r1, r2, t), Hf stands for H flat
     // Using four points to build the H first
     Matrix3d KH;
-    int pointsNumber = pts_id.size();
+    int pointsNumber = pts_2.size();
 
     MatrixXd P0(2*pointsNumber, 9);
     MatrixXd P(8,9);
@@ -118,6 +118,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
     MatrixXd V = svd.matrixV();
     VectorXd Hf = V.col(8);
+    Matrix3d H;
     H.row(0) = Hf.segment(0,2).transpose();
     H.row(1) = Hf.segment(3,5).transpose();
     H.row(2) = Hf.segment(6,8).transpose();
@@ -154,7 +155,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     T = h3_bar / h1_norm;
 
     // Since the direction of the camera depends on the z axis
-    // Normalize them
+    // Normalize themt
     if (T(2) < 0) {
         T = -T;
         R(0) = -R(0);
