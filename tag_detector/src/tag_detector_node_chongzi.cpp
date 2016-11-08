@@ -35,6 +35,13 @@ ros::Publisher pub_odom_yourwork;
 ros::Publisher pub_odom_ref;
 cv::Mat K, D;
 
+//..............................................................chongzi
+float statistic_Tx;
+float statistic_Ty;
+float statistic_Tz;
+long int num_frames;
+//..............................................................chongzi
+
 // test function, can be used to verify your estimation
 void calculateReprojectionError(const vector<cv::Point3f> &pts_3, const vector<cv::Point2f> &pts_2, const cv::Mat R, const cv::Mat t)
 {
@@ -108,18 +115,19 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     ROS_INFO("3D in world frame  : %4f %4f %4f .", pts_3[0].x, pts_3[0].y, pts_3[0].z); 
     ROS_INFO("2D in world picture: %4f %4f .", pts_2[0].x, pts_2[0].y);
     //...................Try to calculate the R and T! Use eigen!! T^T
-    //choose 4 points
+   
+    vector<cv::Point2f> un_pts_2_c;
+    cv::undistortPoints(pts_2, un_pts_2_c, K, D);
     int i;
     int size_id = pts_id.size();
-    MatrixXd Po(2*size_id,9); //
+    float error;
+    MatrixXd Po(2*size_id,9); //Use this kind of format to declare the Matrix (Dynamic declare)
     for(i=0; i<size_id ;i++)
     {
     cout<<"i" << endl << i <<endl;
-    Po.row(2*i)   <<   pts_3[i].x, pts_3[i].y,    1,          0,          0,     0,  -pts_3[i].x*pts_2[i].x,  -pts_3[i].y*pts_2[i].x,  -pts_2[i].x;
-    Po.row(2*i+1) <<            0,          0,    0, pts_3[i].x, pts_3[i].y,     1,  -pts_3[i].x*pts_2[i].y,  -pts_3[i].y*pts_2[i].y,  -pts_2[i].y;
-    }
-    cout<<"i" << endl << i <<endl;
-  
+    Po.row(2*i)   <<   pts_3[i].x, pts_3[i].y,    1,          0,          0,     0,  -pts_3[i].x*un_pts_2_c[i].x,  -pts_3[i].y*un_pts_2_c[i].x,  -un_pts_2_c[i].x;
+    Po.row(2*i+1) <<            0,          0,    0, pts_3[i].x, pts_3[i].y,     1,  -pts_3[i].x*un_pts_2_c[i].y,  -pts_3[i].y*un_pts_2_c[i].y,  -un_pts_2_c[i].y;
+    }  
     cout<<"Here" << endl << i <<endl;
     cout<<"Po" << endl << Po <<endl;
     JacobiSVD<MatrixXd> svd(Po, ComputeThinU | ComputeThinV);
@@ -128,13 +136,13 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     Matrix<double, 9,9> Vpo;
     Vpo=svd.matrixV();
     VectorXd Hp;
-    //Hp = svd.solve(An);//get the answer of equation: Po*??=An
+    //Hp = svd.solve(An);//get the answer of equation: Po*??=An; Because An={0},it does not works.
     //cout<< "Hp:" << endl << Hp <<endl;
     Hp=Vpo.col(8);
-    cout<<"Po * Hp" << endl << Po * Hp <<endl;
+    cout<<" Po * Hp " << endl << Po * Hp <<endl;
     Matrix3d H;
     Matrix3d KH;
-    Matrix3d Kin;
+    //Matrix3d Kin;
     Matrix3d nearR;
     Vector3d h1;
     Vector3d h2;
@@ -142,15 +150,12 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     H << Hp[0],  Hp[1], Hp[2],
          Hp[3],  Hp[4], Hp[5],
          Hp[6],  Hp[7], Hp[8];
-   
-    
-  
-    Kin << 0.0041,      0,     -0.7088,
-                0, 0.0041,     -0.4678,
-                0,      0,           1;
+    //Kin << 0.0041,      0,     -0.7088,
+    //            0, 0.0041,     -0.4678,
+    //            0,      0,           1;
     //Kin = K.inverse(); //need #include <Eigen/LU>
-    cout << "Kin" << endl << Kin <<endl;
-    KH = Kin * H;//(the inverse of K) * H
+    //cout << "Kin" << endl << Kin <<endl;
+    KH =  H;//(the inverse of K) * H
     h1 << KH.col(0);
     h2 << KH.col(1);
     h3 << KH.col(2);
@@ -167,7 +172,25 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     cout << "abs_h1" << endl << abs_h1 <<endl;
     T= h3/abs_h1;
     cout << "T" << endl << T <<endl;
-    
+
+    if(T(2)<0)
+    {
+    T=T*-1;
+    R.col(0) = -R.col(0);
+    R.col(1) = -R.col(1);
+    //R.col(2) = -R.col(2);
+    }
+
+    num_frames=num_frames+1;
+    error=(odom_ref.pose.pose.position.x - T(0));
+    statistic_Tx=(error*error+statistic_Tx*(num_frames-1))/num_frames;
+    cout << "statistic_Tx" << endl << statistic_Tx <<endl;
+    error=(odom_ref.pose.pose.position.y - T(1));
+    statistic_Ty=(error*error+statistic_Ty*(num_frames-1))/num_frames;
+    cout << "statistic_Ty" << endl << statistic_Ty <<endl;
+    error=(odom_ref.pose.pose.position.z - T(2));
+    statistic_Tz=(error*error+statistic_Tz*(num_frames-1))/num_frames;
+    cout << "statistic_Tz" << endl << statistic_Tz <<endl;
     //..................................................................................chongzi ends
     Quaterniond Q_yourwork;
     Q_yourwork = R;
