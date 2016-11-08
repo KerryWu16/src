@@ -11,12 +11,12 @@
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
 #include <Eigen/SVD>
-//#include <Eigen/LU>
+// Added dependency for inverse and cross product
+#include <Eign/Geometry>
+// #include <Eigen/LU>
+#include <Eigen/Dense>
 //EIgen SVD libnary, may help you solve SVD
 //JacobiSVD<MatrixXd> svd(A, ComputeThinU | ComputeThinV);
-#include <Eigen/Geometry> //h1.cross(h2);
-
-#include <string.h>
 
 using namespace cv;
 using namespace aruco;
@@ -91,84 +91,53 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     Vector3d T;
     R.setIdentity();
     T.setZero();
-    ROS_INFO("write your code here" ); 
-    cout << "here is K:" << endl << K <<endl;
-    
-    //cout << "here is inverse of K" << endl << K.inverse() <<endl;
-    //..................................................................................chongzi starts
-    //...................At first find what kind of data we can use!
-    int num_pts3_point=0;
-    int num_pts2_point=0;
-    int num_ptsid_point=0;
-    num_pts3_point=pts_3.size();
-    num_pts3_point=pts_2.size();
-    num_ptsid_point=pts_id.size();
-    ROS_INFO("number of (pts_3, pts_2, pts_id) is %ld %ld %ld .", num_pts3_point, num_pts3_point, num_ptsid_point);
-    ROS_INFO("id of point 0      : %ld .", pts_id[0]);
-    ROS_INFO("3D in world frame  : %4f %4f %4f .", pts_3[0].x, pts_3[0].y, pts_3[0].z); 
-    ROS_INFO("2D in world picture: %4f %4f .", pts_2[0].x, pts_2[0].y);
-    //...................Try to calculate the R and T! Use eigen!! T^T
-    //choose 4 points
-    int i;
-    int size_id = pts_id.size();
-    MatrixXd Po(2*size_id,9); //
-    for(i=0; i<size_id ;i++)
-    {
-    cout<<"i" << endl << i <<endl;
-    Po.row(2*i)   <<   pts_3[i].x, pts_3[i].y,    1,          0,          0,     0,  -pts_3[i].x*pts_2[i].x,  -pts_3[i].y*pts_2[i].x,  -pts_2[i].x;
-    Po.row(2*i+1) <<            0,          0,    0, pts_3[i].x, pts_3[i].y,     1,  -pts_3[i].x*pts_2[i].y,  -pts_3[i].y*pts_2[i].y,  -pts_2[i].y;
-    }
-    cout<<"i" << endl << i <<endl;
-  
-    cout<<"Here" << endl << i <<endl;
-    cout<<"Po" << endl << Po <<endl;
-    JacobiSVD<MatrixXd> svd(Po, ComputeThinU | ComputeThinV);
-    cout<<"svd.singularValues()" << endl << svd.singularValues() <<endl;
-    cout<<"svd.matrixV()" << endl << svd.matrixV() <<endl;
-    Matrix<double, 9,9> Vpo;
-    Vpo=svd.matrixV();
-    VectorXd Hp;
-    //Hp = svd.solve(An);//get the answer of equation: Po*??=An
-    //cout<< "Hp:" << endl << Hp <<endl;
-    Hp=Vpo.col(8);
-    cout<<"Po * Hp" << endl << Po * Hp <<endl;
+    ROS_INFO("write your code here!");
+    // Version 1 Linear 3D-2D pose estimation on planar scene
+    // H = K (r1, r2, t), Hf stands for H flat
+    // Using four points to build the H first
     Matrix3d H;
     Matrix3d KH;
-    Matrix3d Kin;
-    Matrix3d nearR;
-    Vector3d h1;
-    Vector3d h2;
-    Vector3d h3;
-    H << Hp[0],  Hp[1], Hp[2],
-         Hp[3],  Hp[4], Hp[5],
-         Hp[6],  Hp[7], Hp[8];
-   
-    
-  
-    Kin << 0.0041,      0,     -0.7088,
-                0, 0.0041,     -0.4678,
-                0,      0,           1;
-    //Kin = K.inverse(); //need #include <Eigen/LU>
-    cout << "Kin" << endl << Kin <<endl;
-    KH = Kin * H;//(the inverse of K) * H
-    h1 << KH.col(0);
-    h2 << KH.col(1);
-    h3 << KH.col(2);
-    nearR.col(0) << h1;
-    nearR.col(1) << h2;
-    nearR.col(2) << h1.cross(h2); //need #include <Eigen/Geometry>
-    cout<< "nearR:" << endl << nearR <<endl;
-    JacobiSVD<MatrixXd> svd2(nearR, ComputeThinU | ComputeThinV);
-    R=svd2.matrixU() * svd2.matrixV().transpose();
-    cout << "R" << endl << R <<endl;
-    cout << "|R|" << endl << R.determinant() <<endl;
-    cout << "h1" << endl << h1 <<endl;
-    double abs_h1=h1.norm();
-    cout << "abs_h1" << endl << abs_h1 <<endl;
-    T= h3/abs_h1;
-    cout << "T" << endl << T <<endl;
-    
-    //..................................................................................chongzi ends
+    Vector9d Hf;
+    MatrixXd P0(2*pts_id, 9);
+    MatrixXd P(8,9);
+    for (int i = 0; i < pts_id; i++) {
+        float X, Y, u, v;
+        X = pts_3[i].x;
+        Y = pts_3[i].y;
+        u = pts_2[i].x;
+        v = pts_2[i].y;
+        P0.row(2*i  ) << X, Y, 1, 0, 0, 0, -X*u, -Y*u, -u;
+        P0.row(2*i+1) << 0, 0, 0, X, Y, 1, -X*v, -Y*v, -v;
+    }
+    P = P0.topRows(8);
+    // Using the top four points to SVD first, then use all of the points
+    // TODO: later using any four points of SVD, and eliminate the outliers
+    //       Then find the optimal
+    JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
+    Matrix9d V = svd.matrixV();
+    Hf = V.col(8);
+    H.row(0) = Hf.segment(0,2).transpose();
+    H.row(1) = Hf.segment(3,5).transpose();
+    H.row(2) = Hf.segment(6,8).transpose();
+    KH = K.inverse()*H;
+
+    // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
+    Vector3d h1_bar;
+    Vector3d h2_bar;
+    Vector3d h3_bar;
+    Vector3d h12_bar_cross;
+    h1_bar = KH.col(0);
+    h2_bar = KH.col(1);
+    h3_bar = KH.col(2);
+    h12_bar_cross = h1_bar.cross(h2_bar);
+    Matrix3d R_approx;
+    R_approx << h1_bar, h2_bar, h12_bar_cross;
+
+    JacobiSVD<MatrixXd> svd_min(R_approx, ComputeThinU | ComputeThinV);
+    R = svd_min.matrixU() * svd_min.matrixV().transpose();
+
+    T = h3_bar / h1_bar.array().abs();
+    //...
     Quaterniond Q_yourwork;
     Q_yourwork = R;
     nav_msgs::Odometry odom_yourwork;
