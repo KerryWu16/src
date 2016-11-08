@@ -97,7 +97,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Using four points to build the H first
     Matrix3d KH;
     int pointsNumber = pts_2.size();
-
+    
     MatrixXd P0(2*pointsNumber, 9);
     MatrixXd P(8,9);
     vector<cv::Point2f> un_pts_2;
@@ -112,16 +112,21 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
         P0.row(2*i+1) << 0, 0, 0, X, Y, 1, -X*v, -Y*v, -v;
     }
     P = P0.topRows(8);
+
     // Using the top four points to SVD first, then use all of the points
     // TODO: later using any four points of SVD, and eliminate the outliers
     //       Then find the optimal
-    JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
-    MatrixXd V = svd.matrixV();
+    JacobiSVD<MatrixXd> svd(P0, ComputeThinU | ComputeThinV);
+
+    MatrixXd V(9,9);
+    V = svd.matrixV();
+
     VectorXd Hf = V.col(8);
     Matrix3d H;
-    H.row(0) = Hf.segment(0,2).transpose();
-    H.row(1) = Hf.segment(3,5).transpose();
-    H.row(2) = Hf.segment(6,8).transpose();
+
+    H << Hf(0), Hf(1), Hf(2),
+         Hf(3), Hf(4), Hf(5),
+         Hf(6), Hf(7), Hf(8);
     // Matrix3d H = Map<Matrix3d>(Hf.data(), Hf.size());
     // cv::Mat K_inv = K.inv();
     // Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
@@ -158,8 +163,8 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Normalize themt
     if (T(2) < 0) {
         T = -T;
-        R(0) = -R(0);
-        R(1) = -R(1);
+        R.col(0) = -R.col(0);
+        R.col(1) = -R.col(1);
     }
     //...
     Quaterniond Q_yourwork;
