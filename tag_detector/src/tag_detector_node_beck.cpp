@@ -16,6 +16,8 @@
 //EIgen SVD libnary, may help you solve SVD
 //JacobiSVD<MatrixXd> svd(A, ComputeThinU | ComputeThinV);
 
+#define DEBUG 1
+
 using namespace cv;
 using namespace aruco;
 using namespace Eigen;
@@ -93,7 +95,6 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Version 1 Linear 3D-2D pose estimation on planar scene
     // H = K (r1, r2, t), Hf stands for H flat
     // Using four points to build the H first
-    Matrix3d H;
     Matrix3d KH;
     int pointsNumber = pts_id.size();
 
@@ -118,9 +119,18 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // H.row(0) = Hf.segment(0,2).transpose();
     // H.row(1) = Hf.segment(3,5).transpose();
     // H.row(2) = Hf.segment(6,8).transpose();
-    H = Map<Matrix3d>(Hf);
+    Matrix3d H = Map<Matrix3d>(Hf.data(), Hf.size());
     cv::Mat K_inv = K.inv();
     Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
+    #ifdef DEBUG
+        cout<<"Checking if mapping from Hf to H is correct:" << endl;
+        cout<<"H: " << endl << H <<endl;
+        cout<<"Hf:" << endl << Hf <<endl;
+        cout<<"Checking if mapping from cv::Mat to Eigen::Matrix is correct:" << endl;
+        cout<<"K_inv: " << endl << K_inv <<endl;
+        cout<<"K_inv_Eigen:" << endl << K_inv_Eigen <<endl;
+    #endif
+
     KH = K_inv_Eigen * H;
 
     // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
@@ -138,7 +148,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     JacobiSVD<MatrixXd> svd_min(R_approx, ComputeThinU | ComputeThinV);
     R = svd_min.matrixU() * svd_min.matrixV().transpose();
 
-    double h1_norm = h1_bar.array().abs();
+    double h1_norm = h1_bar.norm());
     T = h3_bar / h1_norm;
     //...
     Quaterniond Q_yourwork;
