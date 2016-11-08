@@ -12,9 +12,7 @@
 #include <Eigen/Eigen>
 #include <Eigen/SVD>
 // Added dependency for inverse and cross product
-#include <Eign/Geometry>
-// #include <Eigen/LU>
-#include <Eigen/Dense>
+#include <Eigen/Geometry>
 //EIgen SVD libnary, may help you solve SVD
 //JacobiSVD<MatrixXd> svd(A, ComputeThinU | ComputeThinV);
 
@@ -97,10 +95,11 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Using four points to build the H first
     Matrix3d H;
     Matrix3d KH;
-    Vector9d Hf;
-    MatrixXd P0(2*pts_id, 9);
+    int pointsNumber = pts_id.size();
+    VectorXd Hf(9);
+    MatrixXd P0(2*pointsNumber, 9);
     MatrixXd P(8,9);
-    for (int i = 0; i < pts_id; i++) {
+    for (int i = 0; i < pointsNumber; i++) {
         float X, Y, u, v;
         X = pts_3[i].x;
         Y = pts_3[i].y;
@@ -114,12 +113,12 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // TODO: later using any four points of SVD, and eliminate the outliers
     //       Then find the optimal
     JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
-    Matrix9d V = svd.matrixV();
+    MatrixXd V = svd.matrixV();
     Hf = V.col(8);
     H.row(0) = Hf.segment(0,2).transpose();
     H.row(1) = Hf.segment(3,5).transpose();
     H.row(2) = Hf.segment(6,8).transpose();
-    KH = K.inverse()*H;
+    KH = K.inv()*H;
 
     // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
     Vector3d h1_bar;
@@ -136,7 +135,8 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     JacobiSVD<MatrixXd> svd_min(R_approx, ComputeThinU | ComputeThinV);
     R = svd_min.matrixU() * svd_min.matrixV().transpose();
 
-    T = h3_bar / h1_bar.array().abs();
+    double h1_norm = h1_bar.array().abs();
+    T = h3_bar / h1_norm;
     //...
     Quaterniond Q_yourwork;
     Q_yourwork = R;
