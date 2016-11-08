@@ -16,7 +16,7 @@
 //EIgen SVD libnary, may help you solve SVD
 //JacobiSVD<MatrixXd> svd(A, ComputeThinU | ComputeThinV);
 
-#define DEBUG 1
+#define DEBUG false
 
 using namespace cv;
 using namespace aruco;
@@ -100,12 +100,14 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
 
     MatrixXd P0(2*pointsNumber, 9);
     MatrixXd P(8,9);
+    vector<cv::Point2f> un_pts_2;
+    cv::undistortPoints(pts_2, un_pts_2, K, D);
     for (int i = 0; i < pointsNumber; i++) {
         float X, Y, u, v;
         X = pts_3[i].x;
         Y = pts_3[i].y;
-        u = pts_2[i].x;
-        v = pts_2[i].y;
+        u = un_pts_2[i].x;
+        v = un_pts_2[i].y;
         P0.row(2*i  ) << X, Y, 1, 0, 0, 0, -X*u, -Y*u, -u;
         P0.row(2*i+1) << 0, 0, 0, X, Y, 1, -X*v, -Y*v, -v;
     }
@@ -116,22 +118,23 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
     MatrixXd V = svd.matrixV();
     VectorXd Hf = V.col(8);
-    // H.row(0) = Hf.segment(0,2).transpose();
-    // H.row(1) = Hf.segment(3,5).transpose();
-    // H.row(2) = Hf.segment(6,8).transpose();
-    Matrix3d H = Map<Matrix3d>(Hf.data(), Hf.size());
-    cv::Mat K_inv = K.inv();
-    Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
+    H.row(0) = Hf.segment(0,2).transpose();
+    H.row(1) = Hf.segment(3,5).transpose();
+    H.row(2) = Hf.segment(6,8).transpose();
+    // Matrix3d H = Map<Matrix3d>(Hf.data(), Hf.size());
+    // cv::Mat K_inv = K.inv();
+    // Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
     #ifdef DEBUG
         cout<<"Checking if mapping from Hf to H is correct:" << endl;
         cout<<"H: " << endl << H <<endl;
         cout<<"Hf:" << endl << Hf <<endl;
-        cout<<"Checking if mapping from cv::Mat to Eigen::Matrix is correct:" << endl;
-        cout<<"K_inv: " << endl << K_inv <<endl;
-        cout<<"K_inv_Eigen:" << endl << K_inv_Eigen <<endl;
+        // cout<<"Checking if mapping from cv::Mat to Eigen::Matrix is correct:" << endl;
+        // cout<<"K_inv: " << endl << K_inv <<endl;
+        // cout<<"K_inv_Eigen:" << endl << K_inv_Eigen <<endl;
     #endif
 
-    KH = K_inv_Eigen * H;
+    // KH = K_inv_Eigen * H;
+    KH = H;
 
     // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
     Vector3d h1_bar;
@@ -144,11 +147,10 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     h12_bar_cross = h1_bar.cross(h2_bar);
     Matrix3d R_approx;
     R_approx << h1_bar, h2_bar, h12_bar_cross;
-
     JacobiSVD<MatrixXd> svd_min(R_approx, ComputeThinU | ComputeThinV);
     R = svd_min.matrixU() * svd_min.matrixV().transpose();
 
-    double h1_norm = h1_bar.norm());
+    double h1_norm = h1_bar.norm();
     T = h3_bar / h1_norm;
     //...
     Quaterniond Q_yourwork;
