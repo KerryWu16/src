@@ -152,6 +152,14 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
 
     double h1_norm = h1_bar.norm();
     T = h3_bar / h1_norm;
+
+    // Since the direction of the camera depends on the z axis
+    // Normalize them
+    if (T(2) < 0) {
+        T = -T;
+        R(0) = -R(0);
+        R(1) = -R(1);
+    }
     //...
     Quaterniond Q_yourwork;
     Q_yourwork = R;
