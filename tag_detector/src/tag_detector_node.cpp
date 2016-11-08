@@ -111,15 +111,13 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     //choose 4 points
     int i;
     int size_id = pts_id.size();
-    MatrixXd Po(2*size_id,9); //
+    MatrixXd Po(2*size_id,9); //Use this kind of format to declare the Matrix (Dynamic declare)
     for(i=0; i<size_id ;i++)
     {
     cout<<"i" << endl << i <<endl;
     Po.row(2*i)   <<   pts_3[i].x, pts_3[i].y,    1,          0,          0,     0,  -pts_3[i].x*pts_2[i].x,  -pts_3[i].y*pts_2[i].x,  -pts_2[i].x;
     Po.row(2*i+1) <<            0,          0,    0, pts_3[i].x, pts_3[i].y,     1,  -pts_3[i].x*pts_2[i].y,  -pts_3[i].y*pts_2[i].y,  -pts_2[i].y;
-    }
-    cout<<"i" << endl << i <<endl;
-  
+    }  
     cout<<"Here" << endl << i <<endl;
     cout<<"Po" << endl << Po <<endl;
     JacobiSVD<MatrixXd> svd(Po, ComputeThinU | ComputeThinV);
@@ -128,10 +126,10 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     Matrix<double, 9,9> Vpo;
     Vpo=svd.matrixV();
     VectorXd Hp;
-    //Hp = svd.solve(An);//get the answer of equation: Po*??=An
+    //Hp = svd.solve(An);//get the answer of equation: Po*??=An; Because An={0},it does not works.
     //cout<< "Hp:" << endl << Hp <<endl;
     Hp=Vpo.col(8);
-    cout<<"Po * Hp" << endl << Po * Hp <<endl;
+    cout<<" Po * Hp " << endl << Po * Hp <<endl;
     Matrix3d H;
     Matrix3d KH;
     Matrix3d Kin;
@@ -142,9 +140,6 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     H << Hp[0],  Hp[1], Hp[2],
          Hp[3],  Hp[4], Hp[5],
          Hp[6],  Hp[7], Hp[8];
-   
-    
-  
     Kin << 0.0041,      0,     -0.7088,
                 0, 0.0041,     -0.4678,
                 0,      0,           1;
