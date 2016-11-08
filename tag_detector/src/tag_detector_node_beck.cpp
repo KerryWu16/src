@@ -96,7 +96,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     Matrix3d H;
     Matrix3d KH;
     int pointsNumber = pts_id.size();
-    VectorXd Hf(9);
+
     MatrixXd P0(2*pointsNumber, 9);
     MatrixXd P(8,9);
     for (int i = 0; i < pointsNumber; i++) {
@@ -114,11 +114,14 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     //       Then find the optimal
     JacobiSVD<MatrixXd> svd(P, ComputeThinU | ComputeThinV);
     MatrixXd V = svd.matrixV();
-    Hf = V.col(8);
-    H.row(0) = Hf.segment(0,2).transpose();
-    H.row(1) = Hf.segment(3,5).transpose();
-    H.row(2) = Hf.segment(6,8).transpose();
-    KH = K.inv()*H;
+    VectorXd Hf = V.col(8);
+    // H.row(0) = Hf.segment(0,2).transpose();
+    // H.row(1) = Hf.segment(3,5).transpose();
+    // H.row(2) = Hf.segment(6,8).transpose();
+    H = Map<Matrix3d>(Hf);
+    cv::Mat K_inv = K.inv();
+    Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
+    KH = K_inv_Eigen * H;
 
     // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
     Vector3d h1_bar;
