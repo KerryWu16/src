@@ -35,6 +35,10 @@ ros::Publisher pub_odom_yourwork;
 ros::Publisher pub_odom_ref;
 cv::Mat K, D;
 
+// Beck's insert for non-linear 3D-2D pose estimation
+Vector3d euler_past; // Euler angle in ZYX from last frame
+Vector3d T_rec_past; // recursive T from last frame
+
 // test function, can be used to verify your estimation
 void calculateReprojectionError(const vector<cv::Point3f> &pts_3, const vector<cv::Point2f> &pts_2, const cv::Mat R, const cv::Mat t)
 {
@@ -95,13 +99,14 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Version 1 Linear 3D-2D pose estimation on planar scene
     // H = K (r1, r2, t), Hf stands for H flat
     // Using four points to build the H first
-    Matrix3d KH;
-    int pointsNumber = pts_2.size();
-    
-    MatrixXd P0(2*pointsNumber, 9);
-    MatrixXd P(8,9);
+    // preprocessing the points
     vector<cv::Point2f> un_pts_2;
     cv::undistortPoints(pts_2, un_pts_2, K, D);
+    int pointsNumber = pts_2.size();
+
+    MatrixXd P0(2*pointsNumber, 9);
+    MatrixXd P(8,9);
+
     for (int i = 0; i < pointsNumber; i++) {
         float X, Y, u, v;
         X = pts_3[i].x;
@@ -113,9 +118,7 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     }
     P = P0.topRows(8);
 
-    // Using the top four points to SVD first, then use all of the points
-    // TODO: later using any four points of SVD, and eliminate the outliers
-    //       Then find the optimal
+    // Using all of the points to find the linear pose estimation
     JacobiSVD<MatrixXd> svd(P0, ComputeThinU | ComputeThinV);
 
     MatrixXd V(9,9);
@@ -127,46 +130,108 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     H << Hf(0), Hf(1), Hf(2),
          Hf(3), Hf(4), Hf(5),
          Hf(6), Hf(7), Hf(8);
-    // Matrix3d H = Map<Matrix3d>(Hf.data(), Hf.size());
-    // cv::Mat K_inv = K.inv();
-    // Matrix3d K_inv_Eigen = Map<Matrix3d>(K_inv.data());
-    #ifdef DEBUG
-        cout<<"Checking if mapping from Hf to H is correct:" << endl;
-        cout<<"H: " << endl << H <<endl;
-        cout<<"Hf:" << endl << Hf <<endl;
-        // cout<<"Checking if mapping from cv::Mat to Eigen::Matrix is correct:" << endl;
-        // cout<<"K_inv: " << endl << K_inv <<endl;
-        // cout<<"K_inv_Eigen:" << endl << K_inv_Eigen <<endl;
-    #endif
-
-    // KH = K_inv_Eigen * H;
-    KH = H;
 
     // Find the orthogonal matrix R, with the estimate h1_bar and h2_bar
     Vector3d h1_bar;
     Vector3d h2_bar;
     Vector3d h3_bar;
     Vector3d h12_bar_cross;
-    h1_bar = KH.col(0);
-    h2_bar = KH.col(1);
-    h3_bar = KH.col(2);
+    h1_bar = H.col(0);
+    h2_bar = H.col(1);
+    h3_bar = H.col(2);
     h12_bar_cross = h1_bar.cross(h2_bar);
     Matrix3d R_approx;
     R_approx << h1_bar, h2_bar, h12_bar_cross;
     JacobiSVD<MatrixXd> svd_min(R_approx, ComputeThinU | ComputeThinV);
-    R = svd_min.matrixU() * svd_min.matrixV().transpose();
+
+    Matrix3d R_linear;
+    Vector3d T_linear;
+    R_linear = svd_min.matrixU() * svd_min.matrixV().transpose();
 
     double h1_norm = h1_bar.norm();
-    T = h3_bar / h1_norm;
+    T_linear = h3_bar / h1_norm;
 
     // Since the direction of the camera depends on the z axis
     // Normalize themt
-    if (T(2) < 0) {
-        T = -T;
-        R.col(0) = -R.col(0);
-        R.col(1) = -R.col(1);
+    if (T_linear(2) < 0) {
+        T_linear = -T_linear;
+        R_linear.col(0) = -R_linear.col(0);
+        R_linear.col(1) = -R_linear.col(1);
     }
-    //...
+
+    // Second phase: using nonlinear 3D-2D Newton Method
+    Vector2d b_sum;
+    MatrixXd A_sum(2,6);
+
+    Vector3d euler_init;// Euler angle in ZYX, initial
+    Vector3d T_init;  // initial T
+    Vector3d euler;// Euler angle in ZYX, initial
+    Vector3d T_rec;  // recursive T
+
+    euler_init = R_linear.eulerAngle(2,1,0); // Euler angle in ZYX
+    T_init = T_linear；
+    // Step 1: compute the initial Euler angle and T
+    for (int i = 0; i < pointsNumber; i++) {
+        Vector2d f0;
+        Vector3d p0 << pts_3[i].x, pts_3[i].y, pts_3[i].z;
+        Vector3d pos3d_rot = R_linear * p0 + T_linear;
+        Vector2d pos3d_rot_2d;
+        pos3d_rot_2d << pos3d_rot(0) / pos3d_rot(2), pos3d_rot(1) / pos3d_rot(2); // x/z, y/z
+        f0 << un_pts_2[i].x - pos3d_rot_2d(0), un_pts_2[i].y - pos3d_rot_2d(1);
+        b_sum += f0;
+    }
+
+    // Step 2: get the derivative matrix from Matlab, and get the A
+    for (int i = 0; i < pointsNumber; i++) {
+        MatrixXd Jacobian(2,6);
+        R =
+
+        [ cos(a)*cos(b), cos(a)*sin(b)*sin(y) - sin(a)*cos(y), sin(a)*sin(y) + cos(a)*sin(b)*cos(y)]
+        [ cos(b)*sin(a), cos(a)*cos(y) + sin(a)*sin(b)*sin(y), sin(a)*sin(b)*cos(y) - cos(a)*sin(y)]
+        [       -sin(b),                        cos(b)*sin(y),                        cos(b)*cos(y)]
+
+
+        dRda =
+
+        [ -cos(b)*sin(a), - cos(a)*cos(y) - sin(a)*sin(b)*sin(y), cos(a)*sin(y) - sin(a)*sin(b)*cos(y)]
+        [  cos(a)*cos(b),   cos(a)*sin(b)*sin(y) - sin(a)*cos(y), sin(a)*sin(y) + cos(a)*sin(b)*cos(y)]
+        [              0,                                      0,                                    0]
+
+
+        dRdb =
+
+        [ -cos(a)*sin(b), cos(a)*cos(b)*sin(y), cos(a)*cos(b)*cos(y)]
+        [ -sin(a)*sin(b), cos(b)*sin(a)*sin(y), cos(b)*sin(a)*cos(y)]
+        [        -cos(b),       -sin(b)*sin(y),       -sin(b)*cos(y)]
+
+
+        dRdy =
+
+        [ 0, sin(a)*sin(y) + cos(a)*sin(b)*cos(y),   sin(a)*cos(y) - cos(a)*sin(b)*sin(y)]
+        [ 0, sin(a)*sin(b)*cos(y) - cos(a)*sin(y), - cos(a)*cos(y) - sin(a)*sin(b)*sin(y)]
+        [ 0,                        cos(b)*cos(y),                         -cos(b)*sin(y)]  
+    }
+    // Step 3: calculate the increment
+    VectorXd increment(6,1);
+    increment = b_sum / A_sum;
+    euler += increment.segment(0,2);
+    T_rec += increment.segment(3,5);
+
+    // Step 4: convert the incremented euler angle to rotation matrix
+    double roll = euler(0);
+    double yaw  = euler(1);
+    double pitch= euler(2);
+    AngleAxisd rollAngle(roll, Vector3d::UnitZ());
+    AngleAxisd yawAngle(yaw, Vector3d::UnitY());
+    AngleAxisd pitchAngle(pitch, Vector3d::UnitX());
+
+    Quaternion<double> quaternion = rollAngle * yawAngle * pitchAngle;
+
+    Matrix3d rotationMatrix = quaternion.matrix();
+
+    R = rotationMatrix;
+    T = T_rec;
+
     Quaterniond Q_yourwork;
     Q_yourwork = R;
     nav_msgs::Odometry odom_yourwork;
