@@ -184,6 +184,9 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
     // Step 2: get the derivative matrix from Matlab, and get the A
     for (int i = 0; i < pointsNumber; i++) {
         MatrixXd Jacobian(2,6);
+
+        // Jacobian Matrix from Matlab
+        /*
         R =
 
         [ cos(a)*cos(b), cos(a)*sin(b)*sin(y) - sin(a)*cos(y), sin(a)*sin(y) + cos(a)*sin(b)*cos(y)]
@@ -209,7 +212,8 @@ void process(const vector<int> &pts_id, const vector<cv::Point3f> &pts_3, const 
 
         [ 0, sin(a)*sin(y) + cos(a)*sin(b)*cos(y),   sin(a)*cos(y) - cos(a)*sin(b)*sin(y)]
         [ 0, sin(a)*sin(b)*cos(y) - cos(a)*sin(y), - cos(a)*cos(y) - sin(a)*sin(b)*sin(y)]
-        [ 0,                        cos(b)*cos(y),                         -cos(b)*sin(y)]  
+        [ 0,                        cos(b)*cos(y),                         -cos(b)*sin(y)]
+        */
     }
     // Step 3: calculate the increment
     VectorXd increment(6,1);
