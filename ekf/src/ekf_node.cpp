@@ -20,10 +20,11 @@ current_time = ros::Time::now();
 last_time = ros::Time::now();
 
 // Mean and covariance matrixs
-VectorXd mean_current = VectorXd::Identity(15);
-VectorXd mean_last = VectorXd::Identity(15);
-MatrixXd covar_current = MatrixXd::Identity(15, 15);
-MatrixXd covar_last = MatrixXd::Identity(15, 15);
+// TODO: get the initial value from camera
+VectorXd mean_ns = VectorXd::Identity(15);
+VectorXd mean_ps = VectorXd::Identity(15);
+MatrixXd cov_ns = MatrixXd::Identity(15, 15);
+MatrixXd cov_ps = MatrixXd::Identity(15, 15);
 
 // Initially use a constant, later need to read from the environment
 float g = 9.81;
@@ -93,24 +94,24 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     // Q(10,10) = nbg[1];
     // Q(11,11) = nbg[2];
 
-    // TODO: updated to f(mu_t_1, u_t, 0)
+    // updated to f(mu_t_1, u_t, 0)
     VectorXd F_t_1;
     F_t_1 <<
             x31,
             x32,
             x33,
-            wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
-            -(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
-            -(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
-            (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52) + g,
-            (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52) + g,
-            sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) + g,
-            nbg1,
-            nbg2,
-            nbg3,
-            nba1,
-            nba2,
-            nba3;
+            wm[0]*cos(x22) - 0*cos(x22) - x41*cos(x22) - 0*sin(x22) + wm[2]*sin(x22) - x43*sin(x22),
+            -(0*cos(x21) - wm[1]*cos(x21) + x42*cos(x21) - 0*cos(x22)*sin(x21) + wm[2]*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + 0*sin(x21)*sin(x22) - wm[0]*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
+            -(0*cos(x22) - wm[2]*cos(x22) + x43*cos(x22) - 0*sin(x22) + wm[0]*sin(x22) - x41*sin(x22))/cos(x21),
+            (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(0 - am[2] + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(0 - am[0] + x51) - cos(x21)*sin(x23)*(0 - am[1] + x52) + g,
+            (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(0 - am[0] + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(0 - am[2] + x53) - cos(x21)*cos(x23)*(0 - am[1] + x52) + g,
+            sin(x21)*(0 - am[1] + x52) - cos(x21)*cos(x22)*(0 - am[2] + x53) - cos(x21)*sin(x22)*(0 - am[0] + x51) + g,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0;
 
     // Jacobian Matrix from matlab code
     At << \
@@ -168,8 +169,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     Vt = dt * Ut;
 
     // Calculate the propogagted mean and covariance
-    mean_current = mean_last + dt * F_t_1;
-    covar_current = Ft * covar_last * Ft.transpose() + Vt * Qt * Vt.transpose();
+    mean_ns = mean_ps + dt * F_t_1;
+    cov_ns = Ft * cov_ps * Ft.transpose() + Vt * Qt * Vt.transpose();
 }
 
 //Rotation from the camera frame to the IMU frame
