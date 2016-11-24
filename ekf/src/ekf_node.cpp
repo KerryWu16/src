@@ -7,7 +7,6 @@
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 #include <ros/time.h>
-#include <ros/tf.h>
 
 #define DEBUG true
 
