@@ -26,8 +26,12 @@ last_time = ros::Time::now();
     ps: present state
     ba: state propogated
     ns: next state
+    [x1] x(0)  x(1)  x(2) = position, x y z
+    [x2] x(3)  x(4)  x(5) = orientation, roll pitch yaw, ZXY Euler
+    [x3] x(6)  x(7)  x(8) = linear velocity, x y z
+    [x4] x(9)  x(10) x(11)= gyroscope bias
+    [x5] x(12) x(13) x(14)= accelerator bias
 */
-// TODO: get the initial value from camera
 VectorXd mean_ps = VectorXd::Identity(15);
 VectorXd mean_ba = VectorXd::Identity(15);
 VectorXd mean_ns = VectorXd::Identity(15);
@@ -205,8 +209,18 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     vt(0) = camera_pose_wi.position.x;
     vt(1) = camera_pose_wi.position.y;
     vt(2) = camera_pose_wi.position.z;
-    Quaternion<double> quaternion;
-    quaternion = camera_pose_wi.orientation;
+    Quaternion<double> quaternion_wi;
+    quaternion_wi = camera_pose_wi.orientation;
+    Matrix3d R_wi = quaternion_wi.toRotationMatrix();
+    vt(3) = asin(R_wi(2,1)); // roll_wi in radian
+    vt(4) = acos(R_wi(2,2) / cos(roll_wi)); // pitch_wi
+    vt(5) = acos(R_wi(1,1) / cos(roll_wi)); // yaw_wi
+
+    #ifdef DEBUG
+        cout<<" The roll of camera in ZXY Euler angle: " << endl << vt(3) <<endl;
+        cout<<" The pitch of camera in ZXY Euler angle: " << endl << vt(4) <<endl;
+        cout<<" The yaw of camera in ZXY Euler angle: " << endl << vt(5) <<endl;
+    #endif
 
     /* Update, with C and W matrix
         Linear for this case, use Kalman Filter
@@ -222,18 +236,25 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose()).inverse());
     mean_ns = mean_ba + Kt * (zt - Ct * mean_ba);
     cov_ns  = cov_ba  + Kt * Ct * cov_ba;
+    mean_ps = mean_ns;
+    cov_ps  = cov_ns;
 
-    // TODO: Construct the published odemetry
+    AngleAxisd rollAngle(roll, Vector3d::UnitX());
+    AngleAxisd pitchAngle(pitch, Vector3d::UnitY());
+    AngleAxisd yawAngle(yaw, Vector3d::UnitZ());
+
+    Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
+
     nav_msgs::Odometry odom_yourwork;
     odom_yourwork.header.stamp = msg->header.stamp;
     odom_yourwork.header.frame_id = "ekf_odom";
-    odom_yourwork.pose.pose.position.x = T(0);
-    odom_yourwork.pose.pose.position.y = T(1);
-    odom_yourwork.pose.pose.position.z = T(2);
-    odom_yourwork.pose.pose.orientation.w = Q_yourwork.w();
-    odom_yourwork.pose.pose.orientation.x = Q_yourwork.x();
-    odom_yourwork.pose.pose.orientation.y = Q_yourwork.y();
-    odom_yourwork.pose.pose.orientation.z = Q_yourwork.z();
+    odom_yourwork.pose.pose.position.x = mean_ns(0);
+    odom_yourwork.pose.pose.position.y = mean_ns(1);
+    odom_yourwork.pose.pose.position.z = mean_ns(2);
+    odom_yourwork.pose.pose.orientation.w = Q_output.w();
+    odom_yourwork.pose.pose.orientation.x = Q_output.x();
+    odom_yourwork.pose.pose.orientation.y = Q_output.y();
+    odom_yourwork.pose.pose.orientation.z = Q_output.z();
     odom_pub.publish(odom_yourwork);
 }
 
