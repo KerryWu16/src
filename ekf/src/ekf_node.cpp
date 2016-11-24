@@ -5,8 +5,11 @@
 #include <sensor_msgs/Range.h>
 #include <nav_msgs/Odometry.h>
 #include <Eigen/Eigen>
-
+#include <Eigen/Geometry>
 #include <ros/time.h>
+#include <ros/tf.h>
+
+#define DEBUG true
 
 using namespace std;
 using namespace Eigen;
@@ -19,12 +22,18 @@ ros::Time current_time, last_time;
 current_time = ros::Time::now();
 last_time = ros::Time::now();
 
-// Mean and covariance matrixs
+/*  Mean and covariance matrixs
+    ps: present state
+    ba: state propogated
+    ns: next state
+*/
 // TODO: get the initial value from camera
-VectorXd mean_ns = VectorXd::Identity(15);
 VectorXd mean_ps = VectorXd::Identity(15);
-MatrixXd cov_ns = MatrixXd::Identity(15, 15);
+VectorXd mean_ba = VectorXd::Identity(15);
+VectorXd mean_ns = VectorXd::Identity(15);
 MatrixXd cov_ps = MatrixXd::Identity(15, 15);
+MatrixXd cov_ba = MatrixXd::Identity(15, 15);
+MatrixXd cov_ns = MatrixXd::Identity(15, 15);
 
 // Initially use a constant, later need to read from the environment
 float g = 9.81;
@@ -68,44 +77,25 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     // noise n: linear_acceleration_covariance, angular_velocity_covariance,
     //          acc bias noise, gyro bias noise
     //          assume the covariance is diagonalized and x, y, z are independent
+    //          Given by the TA
     float na[3], ng[3], nba[3], nbg[3];
-    if (msg->linear_acceleration_covariance.begin() != -1) {
-        float linear_cov[9] = msg->linear_acceleration_covariance;
-        na[0] = linear_cov[0];
-        na[1] = linear_cov[4];
-        na[2] = linear_cov[8];
-        Map<MatrixXd> Q.topLeftCorner(3, 3)(linear_cov);
-    } else { na = {0}; }
-
-    if (msg->angular_velocity_covariance.begin() != -1) {
-        float angular_cov[9] = msg->angular_velocity_covariance;
-        ng[0] = angular_cov[0];
-        ng[1] = angular_cov[4];
-        ng[2] = angular_cov[8];
-        Map<MatrixXd> Q.topLeftCorner(6, 6).bottomRightCorner(3,3)(angular_cov);
-    } else { ng = {0}; }
-    nba = {0};
-    nbg = {0};
-    Q.bottomRightCorner(6, 6) = {0};
-    // Q(6,6) = nba[0];
-    // Q(7,7) = nba[1];
-    // Q(8,8) = nba[2];
-    // Q(9,9) = nbg[0];
-    // Q(10,10) = nbg[1];
-    // Q(11,11) = nbg[2];
+    na  = {Q(0, 0), Q(1, 1), Q(2, 2)};
+    ng  = {Q(3, 3), Q(4, 4), Q(5, 5)};
+    nba = {Q(6, 6), Q(7, 7), Q(8, 8)};
+    nbg = {Q(9, 9), Q(10,10), Q(11,11)};
 
     // updated to f(mu_t_1, u_t, 0)
     VectorXd F_t_1;
     F_t_1 <<
-            x31,
-            x32,
-            x33,
-            wm[0]*cos(x22) - 0*cos(x22) - x41*cos(x22) - 0*sin(x22) + wm[2]*sin(x22) - x43*sin(x22),
-            -(0*cos(x21) - wm[1]*cos(x21) + x42*cos(x21) - 0*cos(x22)*sin(x21) + wm[2]*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + 0*sin(x21)*sin(x22) - wm[0]*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
-            -(0*cos(x22) - wm[2]*cos(x22) + x43*cos(x22) - 0*sin(x22) + wm[0]*sin(x22) - x41*sin(x22))/cos(x21),
-            (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(0 - am[2] + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(0 - am[0] + x51) - cos(x21)*sin(x23)*(0 - am[1] + x52) + g,
-            (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(0 - am[0] + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(0 - am[2] + x53) - cos(x21)*cos(x23)*(0 - am[1] + x52) + g,
-            sin(x21)*(0 - am[1] + x52) - cos(x21)*cos(x22)*(0 - am[2] + x53) - cos(x21)*sin(x22)*(0 - am[0] + x51) + g,
+            mean_ns(6),
+            mean_ns(7),
+            mean_ns(8),
+            wm[0]*cos(mean_ns(4)) - 0*cos(mean_ns(4)) - mean_ns(9)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[2]*sin(mean_ns(4)) - mean_ns(11)*sin(mean_ns(4)),
+            -(0*cos(mean_ns(3)) - wm[1]*cos(mean_ns(3)) + mean_ns(10)*cos(mean_ns(3)) - 0*cos(mean_ns(4))*sin(mean_ns(3)) + wm[2]*cos(mean_ns(4))*sin(mean_ns(3)) - mean_ns(11)*cos(mean_ns(4))*sin(mean_ns(3)) + 0*sin(mean_ns(3))*sin(mean_ns(4)) - wm[0]*sin(mean_ns(3))*sin(mean_ns(4)) + mean_ns(9)*sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)),
+            -(0*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3)),
+            (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(0 - am[2] + mean_ns(14)) - (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(0 - am[0] + mean_ns(12)) - cos(mean_ns(3))*sin(mean_ns(5))*(0 - am[1] + mean_ns(13)) + g,
+            (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(0 - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(0 - am[1] + mean_ns(13)) + g,
+            sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) + g,
             0,
             0,
             0,
@@ -118,12 +108,12 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
-     0, 0, 0,                                                                                                                                 0,                                                   wm[2]*cos(x22) - ng[2]*cos(x22) - x43*cos(x22) + ng[0]*sin(x22) - wm[0]*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
-     0, 0, 0,                              (ng[2]*cos(x22) - wm[2]*cos(x22) + x43*cos(x22) - ng[0]*sin(x22) + wm[0]*sin(x22) - x41*sin(x22))/cos(x21)^2,                            -(sin(x21)*(ng[0]*cos(x22) - wm[0]*cos(x22) + x41*cos(x22) + ng[2]*sin(x22) - wm[2]*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
-     0, 0, 0,                  -(sin(x21)*(ng[2]*cos(x22) - wm[2]*cos(x22) + x43*cos(x22) - ng[0]*sin(x22) + wm[0]*sin(x22) - x41*sin(x22)))/cos(x21)^2,                                        (ng[0]*cos(x22) - wm[0]*cos(x22) + x41*cos(x22) + ng[2]*sin(x22) - wm[2]*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
-     0, 0, 0, sin(x21)*sin(x23)*(na[1] - am[1] + x52) - cos(x21)*cos(x22)*sin(x23)*(na[2] - am[2] + x53) - cos(x21)*sin(x22)*sin(x23)*(na[0] - am[0] + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na[0] - am[0] + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na[2] - am[2] + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na[0] - am[0] + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na[2] - am[2] + x53) - cos(x21)*cos(x23)*(na[1] - am[1] + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
-     0, 0, 0, cos(x23)*sin(x21)*(na[1] - am[1] + x52) - cos(x21)*cos(x23)*sin(x22)*(na[0] - am[0] + x51) - cos(x21)*cos(x22)*cos(x23)*(na[2] - am[2] + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na[0] - am[0] + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na[2] - am[2] + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na[0] - am[0] + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na[2] - am[2] + x53) + cos(x21)*sin(x23)*(na[1] - am[1] + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
-     0, 0, 0,                            cos(x21)*(na[1] - am[1] + x52) + cos(x22)*sin(x21)*(na[2] - am[2] + x53) + sin(x21)*sin(x22)*(na[0] - am[0] + x51),                                                                 cos(x21)*sin(x22)*(na[2] - am[2] + x53) - cos(x21)*cos(x22)*(na[0] - am[0] + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
+     0, 0, 0,                                                                                                                                 0,                                                   wm[2]*cos(mean_ns(4)) - ng[2]*cos(mean_ns(4)) - mean_ns(11)*cos(mean_ns(4)) + ng[0]*sin(mean_ns(4)) - wm[0]*sin(mean_ns(4)) + mean_ns(9)*sin(mean_ns(4)),                                                                                                                                                                             0, 0, 0, 0,                     -cos(mean_ns(4)),  0,                    -sin(mean_ns(4)),                                                0,                  0,                                                0,
+     0, 0, 0,                              (ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3))^2,                            -(sin(mean_ns(3))*(ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4))))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0, -(sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)), -1, (cos(mean_ns(4))*sin(mean_ns(3)))/cos(mean_ns(3)),                                                0,                  0,                                                0,
+     0, 0, 0,                  -(sin(mean_ns(3))*(ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4))))/cos(mean_ns(3))^2,                                        (ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4)))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0,             sin(mean_ns(4))/cos(mean_ns(3)),  0,           -cos(mean_ns(4))/cos(mean_ns(3)),                                                0,                  0,                                                0,
+     0, 0, 0, sin(mean_ns(3))*sin(mean_ns(5))*(na[1] - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*sin(mean_ns(5))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5))*(na[0] - am[0] + mean_ns(12)),   (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(na[0] - am[0] + mean_ns(12)) + (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(na[2] - am[2] + mean_ns(14)), (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(na[0] - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(na[1] - am[1] + mean_ns(13)), 0, 0, 0,                             0,  0,                            0, - cos(mean_ns(4))*cos(mean_ns(5)) - sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)), -cos(mean_ns(3))*sin(mean_ns(5)),   cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)),
+     0, 0, 0, cos(mean_ns(5))*sin(mean_ns(3))*(na[1] - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(5))*sin(mean_ns(4))*(na[0] - am[0] + mean_ns(12)) - cos(mean_ns(3))*cos(mean_ns(4))*cos(mean_ns(5))*(na[2] - am[2] + mean_ns(14)), - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(na[0] - am[0] + mean_ns(12)) - (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(na[2] - am[2] + mean_ns(14)), (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(na[0] - am[0] + mean_ns(12)) - (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(na[2] - am[2] + mean_ns(14)) + cos(mean_ns(3))*sin(mean_ns(5))*(na[1] - am[1] + mean_ns(13)), 0, 0, 0,                             0,  0,                            0,   cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)), -cos(mean_ns(3))*cos(mean_ns(5)), - sin(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)),
+     0, 0, 0,                            cos(mean_ns(3))*(na[1] - am[1] + mean_ns(13)) + cos(mean_ns(4))*sin(mean_ns(3))*(na[2] - am[2] + mean_ns(14)) + sin(mean_ns(3))*sin(mean_ns(4))*(na[0] - am[0] + mean_ns(12)),                                                                 cos(mean_ns(3))*sin(mean_ns(4))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(4))*(na[0] - am[0] + mean_ns(12)),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(mean_ns(3))*sin(mean_ns(4)),           sin(mean_ns(3)),                               -cos(mean_ns(3))*cos(mean_ns(4)),
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
@@ -135,12 +125,12 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
-                                                  0,                 0,                                              0,                     cos(x22), 0,                      sin(x22),
-                                                  0,                 0,                                              0, (sin(x21)*sin(x22))/cos(x21), 1, -(cos(x22)*sin(x21))/cos(x21),
-                                                  0,                 0,                                              0,           -sin(x22)/cos(x21), 0,             cos(x22)/cos(x21),
-     cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23), cos(x21)*sin(x23), cos(x22)*sin(x21)*sin(x23) - cos(x23)*sin(x22),                            0, 0,                             0,
-     cos(x23)*sin(x21)*sin(x22) - cos(x22)*sin(x23), cos(x21)*cos(x23), sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21),                            0, 0,                             0,
-                                  cos(x21)*sin(x22),         -sin(x21),                              cos(x21)*cos(x22),                            0, 0,                             0,
+                                                  0,                 0,                                              0,                     cos(mean_ns(4)), 0,                      sin(mean_ns(4)),
+                                                  0,                 0,                                              0, (sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)), 1, -(cos(mean_ns(4))*sin(mean_ns(3)))/cos(mean_ns(3)),
+                                                  0,                 0,                                              0,           -sin(mean_ns(4))/cos(mean_ns(3)), 0,             cos(mean_ns(4))/cos(mean_ns(3)),
+     cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)), cos(mean_ns(3))*sin(mean_ns(5)), cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(4)),                            0, 0,                             0,
+     cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(5)), cos(mean_ns(3))*cos(mean_ns(5)), sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)),                            0, 0,                             0,
+                                  cos(mean_ns(3))*sin(mean_ns(4)),         -sin(mean_ns(3)),                              cos(mean_ns(3))*cos(mean_ns(4)),                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
@@ -152,12 +142,12 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                                    0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
-                                                    0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
-                                                    0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
-     - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-       cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                   -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                                    0,                  0,                                                0,                     -cos(mean_ns(4)),  0,                    -sin(mean_ns(4)), 0, 0, 0, 0, 0, 0,
+                                                    0,                  0,                                                0, -(sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)), -1, (cos(mean_ns(4))*sin(mean_ns(3)))/cos(mean_ns(3)), 0, 0, 0, 0, 0, 0,
+                                                    0,                  0,                                                0,             sin(mean_ns(4))/cos(mean_ns(3)),  0,           -cos(mean_ns(4))/cos(mean_ns(3)), 0, 0, 0, 0, 0, 0,
+     - cos(mean_ns(4))*cos(mean_ns(5)) - sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)), -cos(mean_ns(3))*sin(mean_ns(5)),   cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+       cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)), -cos(mean_ns(3))*cos(mean_ns(5)), - sin(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                   -cos(mean_ns(3))*sin(mean_ns(4)),           sin(mean_ns(3)),                               -cos(mean_ns(3))*cos(mean_ns(4)),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
@@ -169,8 +159,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     Vt = dt * Ut;
 
     // Calculate the propogagted mean and covariance
-    mean_ns = mean_ps + dt * F_t_1;
-    cov_ns = Ft * cov_ps * Ft.transpose() + Vt * Qt * Vt.transpose();
+    mean_ba = mean_ps + dt * F_t_1;
+    cov_ba = Ft * cov_ps * Ft.transpose() + Vt * Qt * Vt.transpose();
 }
 
 //Rotation from the camera frame to the IMU frame
@@ -184,10 +174,59 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     //							      0, 1, 0,
     //                                0, 0, -1;
 
-    // Construct the published odemetry
+    // Get the world frame in camera frame transformation from the msg
+    // # This represents a pose in free space with uncertainty.
+    // Pose pose
+    // //# A representation of pose in free space, composed of position and orientation.
+    // // Point position
+    // // Quaternion orientation
+    tf::Pose camera_pose_cw = msg->pose.pose;
+
+    // Record the camera frame in the IMU frame from TA
+    // Quaterniond Q_ic;
+    // Vector3d T_ic;
+    // Matrix3d R_ic;
+    // Q_ic = Quaterniond(0, 0, 1, 0);
+    // T_ic = Vector3d(0, -0.04, -0.02);
+    // R_ic = Q_ic.toRotationMatrix();
+    tf::Transform transform_ic;
+    transform_ic.setOrigin( tf::Origin(0, -0.04, -0.02) );
+    transform_ic.setRotation( tf::Quaternion(0, 0, 1, 0) );
+    tf::Pose camera_pose_iw = transform_ic * camera_pose_cw;
+
+    // Calculate the IMU frame in the world frame
+    // Quaterniond Q_wi;
+    // Vector3d T_wi;
+    // Matrix3d R_wi;
+    tf::Pose camera_pose_wi = camera_pose_iw.inverse();
+
+    VectorXd vt = VectorXd::Identity(6); // Camera reading in x,y,z, ZXY Euler
+    // TODO: turn the Quaternion to ZXY Euler
+    vt(0) = camera_pose_wi.position.x;
+    vt(1) = camera_pose_wi.position.y;
+    vt(2) = camera_pose_wi.position.z;
+    Quaternion<double> quaternion;
+    quaternion = camera_pose_wi.orientation;
+
+    /* Update, with C and W matrix
+        Linear for this case, use Kalman Filter
+    */
+    MatrixXd Kt = MatrixXd::Identity(15, 15); // Kalman
+    MatrixXd Ct = MatrixXd::Identity(6, 15);
+    MatrixXd Wt = MatrixXd::Identity(6, 6);
+    #ifdef DEBUG
+        // Need to rostopic echo tag_odom
+        cout<<" The pose of camera is in the coordinate frame: " << endl << msg->header.frame_id <<endl;
+        cout<<" The twist of camera is in the child frame: " << endl << msg->child_frame_id <<endl;
+    #endif
+    Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose()).inverse());
+    mean_ns = mean_ba + Kt * (zt - Ct * mean_ba);
+    cov_ns  = cov_ba  + Kt * Ct * cov_ba;
+
+    // TODO: Construct the published odemetry
     nav_msgs::Odometry odom_yourwork;
-    odom_yourwork.header.stamp = frame_time;
-    odom_yourwork.header.frame_id = "world";
+    odom_yourwork.header.stamp = msg->header.stamp;
+    odom_yourwork.header.frame_id = "ekf_odom";
     odom_yourwork.pose.pose.position.x = T(0);
     odom_yourwork.pose.pose.position.y = T(1);
     odom_yourwork.pose.pose.position.z = T(2);
