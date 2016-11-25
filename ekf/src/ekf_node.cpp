@@ -8,7 +8,8 @@
 #include <Eigen/Geometry>
 #include <ros/time.h>
 #include <tf/transform_broadcaster.h>
-#include <cmath.h>
+#include <tf/transform_datatypes.h>
+#include <math.h>
 
 #define DEBUG true
 
@@ -83,10 +84,10 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     //          acc bias noise, gyro bias noise
     //          assume the covariance is diagonalized and x, y, z are independent
     //          Given by the TA
-    float na[3]  = {Q(0, 0), Q(1, 1), Q(2, 2)};
-    float ng[3]  = {Q(3, 3), Q(4, 4), Q(5, 5)};
-    float nba[3] = {Q(6, 6), Q(7, 7), Q(8, 8)};
-    float nbg[3] = {Q(9, 9), Q(10,10), Q(11,11)};
+    double na[3]  = {Q(0, 0), Q(1, 1), Q(2, 2)};
+    double ng[3]  = {Q(3, 3), Q(4, 4), Q(5, 5)};
+    double nba[3] = {Q(6, 6), Q(7, 7), Q(8, 8)};
+    double nbg[3] = {Q(9, 9), Q(10,10), Q(11,11)};
 
     // updated to f(mu_t_1, u_t, 0)
     VectorXd F_t_1;
@@ -184,7 +185,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // //# A representation of pose in free space, composed of position and orientation.
     // // Point position
     // // Quaternion orientation
-    tf::Pose camera_pose_cw = msg->pose.pose;
+    tf::Pose camera_pose_cw;
+    tf::poseMsgToTF(msg->pose, camera_pose_cw);
 
     // Record the camera frame in the IMU frame from TA
     // Quaterniond Q_ic;
@@ -203,18 +205,23 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // Vector3d T_wi;
     // Matrix3d R_wi;
     tf::Pose camera_pose_wi = camera_pose_iw.inverse();
+    geometry_msgs::Pose camera_pose_wi_geo;
+    tf::poseTFToMsg(camera_pose_iw, camera_pose_wi_geo);
 
     VectorXd zt = VectorXd::Identity(6, 1); // Camera reading in x,y,z, ZXY Euler
-    zt(0) = camera_pose_wi.position.x;
-    zt(1) = camera_pose_wi.position.y;
-    zt(2) = camera_pose_wi.position.z;
-    Quaternion<double> quaternion_wi = camera_pose_wi.orientation;
+    zt(0) = camera_pose_wi_geo.position.x;
+    zt(1) = camera_pose_wi_geo.position.y;
+    zt(2) = camera_pose_wi_geo.position.z;
+    Quaternion<double> quaternion_wi = camera_pose_wi_geo.orientation;
     Matrix3d R_wi = quaternion_wi.toRotationMatrix();
     zt(3) = asin(R_wi(2,1)); // roll_wi in radian
-    zt(4) = acos(R_wi(2,2) / cos(roll_wi)); // pitch_wi
-    zt(5) = acos(R_wi(1,1) / cos(roll_wi)); // yaw_wi
+    zt(4) = acos(R_wi(2,2) / cos(zt(3))); // pitch_wi
+    zt(5) = acos(R_wi(1,1) / cos(zt(3))); // yaw_wi
 
     #ifdef DEBUG
+        cout<<" The x of camera: " << endl << zt(0) <<endl;
+        cout<<" The y of camera: " << endl << zt(1) <<endl;
+        cout<<" The z of camera: " << endl << zt(2) <<endl;
         cout<<" The roll of camera in ZXY Euler angle: " << endl << zt(3) <<endl;
         cout<<" The pitch of camera in ZXY Euler angle: " << endl << zt(4) <<endl;
         cout<<" The yaw of camera in ZXY Euler angle: " << endl << zt(5) <<endl;
