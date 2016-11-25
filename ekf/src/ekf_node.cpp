@@ -180,33 +180,19 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     //                                0, 0, -1;
 
     // Get the world frame in camera frame transformation from the msg
-    // # This represents a pose in free space with uncertainty.
-    // Pose pose
-    // //# A representation of pose in free space, composed of position and orientation.
-    // // Point position
-    // // Quaternion orientation
     tf::Pose camera_pose_cw;
-    tf::poseMsgToTF(msg, camera_pose_cw);
+    tf::poseMsgToTF(msg->pose.pose, camera_pose_cw);
 
     // Record the camera frame in the IMU frame from TA
-    // Quaterniond Q_ic;
-    // Vector3d T_ic;
-    // Matrix3d R_ic;
-    // Q_ic = Quaterniond(0, 0, 1, 0);
-    // T_ic = Vector3d(0, -0.04, -0.02);
-    // R_ic = Q_ic.toRotationMatrix();
     tf::Transform transform_ic;
     transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
     transform_ic.setRotation( tf::Quaternion(0, 0, 1, 0) );
     tf::Pose camera_pose_iw = transform_ic * camera_pose_cw;
 
     // Calculate the IMU frame in the world frame
-    // Quaterniond Q_wi;
-    // Vector3d T_wi;
-    // Matrix3d R_wi;
     tf::Pose camera_pose_wi = camera_pose_iw.inverse();
     geometry_msgs::Pose camera_pose_wi_geo;
-    tf::poseTFToMsg(camera_pose_iw, camera_pose_wi_geo);
+    tf::poseTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
     VectorXd zt = VectorXd::Identity(6, 1); // Camera reading in x,y,z, ZXY Euler
     zt(0) = camera_pose_wi_geo.position.x;
