@@ -186,7 +186,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // // Point position
     // // Quaternion orientation
     tf::Pose camera_pose_cw;
-    tf::poseMsgToTF(msg->pose, camera_pose_cw);
+    tf::poseMsgToTF(msg, camera_pose_cw);
 
     // Record the camera frame in the IMU frame from TA
     // Quaterniond Q_ic;
@@ -196,7 +196,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // T_ic = Vector3d(0, -0.04, -0.02);
     // R_ic = Q_ic.toRotationMatrix();
     tf::Transform transform_ic;
-    transform_ic.setOrigin( tf::Origin(0, -0.04, -0.02) );
+    transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
     transform_ic.setRotation( tf::Quaternion(0, 0, 1, 0) );
     tf::Pose camera_pose_iw = transform_ic * camera_pose_cw;
 
@@ -212,11 +212,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     zt(0) = camera_pose_wi_geo.position.x;
     zt(1) = camera_pose_wi_geo.position.y;
     zt(2) = camera_pose_wi_geo.position.z;
-    Quaternion<double> quaternion_wi = camera_pose_wi_geo.orientation;
-    Matrix3d R_wi = quaternion_wi.toRotationMatrix();
-    zt(3) = asin(R_wi(2,1)); // roll_wi in radian
-    zt(4) = acos(R_wi(2,2) / cos(zt(3))); // pitch_wi
-    zt(5) = acos(R_wi(1,1) / cos(zt(3))); // yaw_wi
+    geometry_msgs::Quaternion q_wi = camera_pose_wi_geo.orientation;
+    // Quaternino -> rotation matrix -> ZXY Euler
+    zt(3) = asin(2*(q_wi.y * q_wi.z + q_wi.x * q_wi.w));
+    zt(4) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.y,2)) / cos(zt(3))); // pitch_wi
+    zt(5) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.z,2))  / cos(zt(3))); // yaw_wi
 
     #ifdef DEBUG
         cout<<" The x of camera: " << endl << zt(0) <<endl;
