@@ -7,6 +7,8 @@
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 #include <ros/time.h>
+#include <tf/transform_broadcaster.h>
+#include <cmath.h>
 
 #define DEBUG true
 
@@ -17,9 +19,9 @@ MatrixXd Q = MatrixXd::Identity(12, 12); // For propogate, IMU noise
 MatrixXd Rt = MatrixXd::Identity(6,6);   // For update, Odometry noise
 
 
-ros::Time current_time, last_time;
-current_time = ros::Time::now();
-last_time = ros::Time::now();
+// ros::Time current_time, last_time;
+ros::Time current_time = ros::Time::now();
+ros::Time last_time = ros::Time::now();
 
 /*  Mean and covariance matrixs
     ps: present state
@@ -31,9 +33,9 @@ last_time = ros::Time::now();
     [x4] x(9)  x(10) x(11)= gyroscope bias
     [x5] x(12) x(13) x(14)= accelerator bias
 */
-VectorXd mean_ps = VectorXd::Identity(15);
-VectorXd mean_ba = VectorXd::Identity(15);
-VectorXd mean_ns = VectorXd::Identity(15);
+VectorXd mean_ps = VectorXd::Identity(15, 1);
+VectorXd mean_ba = VectorXd::Identity(15, 1);
+VectorXd mean_ns = VectorXd::Identity(15, 1);
 MatrixXd cov_ps = MatrixXd::Identity(15, 15);
 MatrixXd cov_ba = MatrixXd::Identity(15, 15);
 MatrixXd cov_ns = MatrixXd::Identity(15, 15);
@@ -81,11 +83,10 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     //          acc bias noise, gyro bias noise
     //          assume the covariance is diagonalized and x, y, z are independent
     //          Given by the TA
-    float na[3], ng[3], nba[3], nbg[3];
-    na  = {Q(0, 0), Q(1, 1), Q(2, 2)};
-    ng  = {Q(3, 3), Q(4, 4), Q(5, 5)};
-    nba = {Q(6, 6), Q(7, 7), Q(8, 8)};
-    nbg = {Q(9, 9), Q(10,10), Q(11,11)};
+    float na[3]  = {Q(0, 0), Q(1, 1), Q(2, 2)};
+    float ng[3]  = {Q(3, 3), Q(4, 4), Q(5, 5)};
+    float nba[3] = {Q(6, 6), Q(7, 7), Q(8, 8)};
+    float nbg[3] = {Q(9, 9), Q(10,10), Q(11,11)};
 
     // updated to f(mu_t_1, u_t, 0)
     VectorXd F_t_1;
@@ -112,8 +113,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                   wm[2]*cos(mean_ns(4)) - ng[2]*cos(mean_ns(4)) - mean_ns(11)*cos(mean_ns(4)) + ng[0]*sin(mean_ns(4)) - wm[0]*sin(mean_ns(4)) + mean_ns(9)*sin(mean_ns(4)),                                                                                                                                                                             0, 0, 0, 0,                     -cos(mean_ns(4)),  0,                    -sin(mean_ns(4)),                                                0,                  0,                                                0,
-     0, 0, 0,                              (ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3))^2,                            -(sin(mean_ns(3))*(ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4))))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0, -(sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)), -1, (cos(mean_ns(4))*sin(mean_ns(3)))/cos(mean_ns(3)),                                                0,                  0,                                                0,
-     0, 0, 0,                  -(sin(mean_ns(3))*(ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4))))/cos(mean_ns(3))^2,                                        (ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4)))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0,             sin(mean_ns(4))/cos(mean_ns(3)),  0,           -cos(mean_ns(4))/cos(mean_ns(3)),                                                0,                  0,                                                0,
+     0, 0, 0,                              (ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/pow(cos(mean_ns(3)), 2),                            -(sin(mean_ns(3))*(ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4))))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0, -(sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)), -1, (cos(mean_ns(4))*sin(mean_ns(3)))/cos(mean_ns(3)),                                                0,                  0,                                                0,
+     0, 0, 0,                  -(sin(mean_ns(3))*(ng[2]*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - ng[0]*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4))))/pow(cos(mean_ns(3)), 2),                                        (ng[0]*cos(mean_ns(4)) - wm[0]*cos(mean_ns(4)) + mean_ns(9)*cos(mean_ns(4)) + ng[2]*sin(mean_ns(4)) - wm[2]*sin(mean_ns(4)) + mean_ns(11)*sin(mean_ns(4)))/cos(mean_ns(3)),                                                                                                                                                                             0, 0, 0, 0,             sin(mean_ns(4))/cos(mean_ns(3)),  0,           -cos(mean_ns(4))/cos(mean_ns(3)),                                                0,                  0,                                                0,
      0, 0, 0, sin(mean_ns(3))*sin(mean_ns(5))*(na[1] - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*sin(mean_ns(5))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5))*(na[0] - am[0] + mean_ns(12)),   (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(na[0] - am[0] + mean_ns(12)) + (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(na[2] - am[2] + mean_ns(14)), (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(na[0] - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(na[1] - am[1] + mean_ns(13)), 0, 0, 0,                             0,  0,                            0, - cos(mean_ns(4))*cos(mean_ns(5)) - sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)), -cos(mean_ns(3))*sin(mean_ns(5)),   cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)),
      0, 0, 0, cos(mean_ns(5))*sin(mean_ns(3))*(na[1] - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(5))*sin(mean_ns(4))*(na[0] - am[0] + mean_ns(12)) - cos(mean_ns(3))*cos(mean_ns(4))*cos(mean_ns(5))*(na[2] - am[2] + mean_ns(14)), - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(na[0] - am[0] + mean_ns(12)) - (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(na[2] - am[2] + mean_ns(14)), (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(na[0] - am[0] + mean_ns(12)) - (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(na[2] - am[2] + mean_ns(14)) + cos(mean_ns(3))*sin(mean_ns(5))*(na[1] - am[1] + mean_ns(13)), 0, 0, 0,                             0,  0,                            0,   cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)), -cos(mean_ns(3))*cos(mean_ns(5)), - sin(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)),
      0, 0, 0,                            cos(mean_ns(3))*(na[1] - am[1] + mean_ns(13)) + cos(mean_ns(4))*sin(mean_ns(3))*(na[2] - am[2] + mean_ns(14)) + sin(mean_ns(3))*sin(mean_ns(4))*(na[0] - am[0] + mean_ns(12)),                                                                 cos(mean_ns(3))*sin(mean_ns(4))*(na[2] - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(4))*(na[0] - am[0] + mean_ns(12)),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(mean_ns(3))*sin(mean_ns(4)),           sin(mean_ns(3)),                               -cos(mean_ns(3))*cos(mean_ns(4)),
@@ -163,7 +164,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 
     // Calculate the propogagted mean and covariance
     mean_ba = mean_ps + dt * F_t_1;
-    cov_ba = Ft * cov_ps * Ft.transpose() + Vt * Qt * Vt.transpose();
+    cov_ba = Ft * cov_ps * Ft.transpose() + Vt * Q * Vt.transpose();
 }
 
 //Rotation from the camera frame to the IMU frame
@@ -203,22 +204,20 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // Matrix3d R_wi;
     tf::Pose camera_pose_wi = camera_pose_iw.inverse();
 
-    VectorXd vt = VectorXd::Identity(6); // Camera reading in x,y,z, ZXY Euler
-    // TODO: turn the Quaternion to ZXY Euler
-    vt(0) = camera_pose_wi.position.x;
-    vt(1) = camera_pose_wi.position.y;
-    vt(2) = camera_pose_wi.position.z;
-    Quaternion<double> quaternion_wi;
-    quaternion_wi = camera_pose_wi.orientation;
+    VectorXd zt = VectorXd::Identity(6, 1); // Camera reading in x,y,z, ZXY Euler
+    zt(0) = camera_pose_wi.position.x;
+    zt(1) = camera_pose_wi.position.y;
+    zt(2) = camera_pose_wi.position.z;
+    Quaternion<double> quaternion_wi = camera_pose_wi.orientation;
     Matrix3d R_wi = quaternion_wi.toRotationMatrix();
-    vt(3) = asin(R_wi(2,1)); // roll_wi in radian
-    vt(4) = acos(R_wi(2,2) / cos(roll_wi)); // pitch_wi
-    vt(5) = acos(R_wi(1,1) / cos(roll_wi)); // yaw_wi
+    zt(3) = asin(R_wi(2,1)); // roll_wi in radian
+    zt(4) = acos(R_wi(2,2) / cos(roll_wi)); // pitch_wi
+    zt(5) = acos(R_wi(1,1) / cos(roll_wi)); // yaw_wi
 
     #ifdef DEBUG
-        cout<<" The roll of camera in ZXY Euler angle: " << endl << vt(3) <<endl;
-        cout<<" The pitch of camera in ZXY Euler angle: " << endl << vt(4) <<endl;
-        cout<<" The yaw of camera in ZXY Euler angle: " << endl << vt(5) <<endl;
+        cout<<" The roll of camera in ZXY Euler angle: " << endl << zt(3) <<endl;
+        cout<<" The pitch of camera in ZXY Euler angle: " << endl << zt(4) <<endl;
+        cout<<" The yaw of camera in ZXY Euler angle: " << endl << zt(5) <<endl;
     #endif
 
     /* Update, with C and W matrix
@@ -238,9 +237,9 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     mean_ps = mean_ns;
     cov_ps  = cov_ns;
 
-    AngleAxisd rollAngle(roll, Vector3d::UnitX());
-    AngleAxisd pitchAngle(pitch, Vector3d::UnitY());
-    AngleAxisd yawAngle(yaw, Vector3d::UnitZ());
+    AngleAxisd rollAngle(mean_ns(3), Vector3d::UnitX());
+    AngleAxisd pitchAngle(mean_ns(4), Vector3d::UnitY());
+    AngleAxisd yawAngle(mean_ns(5), Vector3d::UnitZ());
 
     Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
 
