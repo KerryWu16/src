@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS "-std=c++11 -march=native -DEIGEN_DONT_PARALLELIZE")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall")
 
 find_package(catkin REQUIRED COMPONENTS
+	tf
     roscpp
     std_msgs
     nav_msgs
