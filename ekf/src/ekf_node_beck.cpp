@@ -71,7 +71,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     float dt = 0.0;
     last_time = current_time;
     current_time = msg->header.stamp;
-    dt = (float)(current_time.sec - last_time.sec + (current_time.nsec - last_time.nsec) / 1E9);
+    dt = current_time.toSec() - last_time.toSec();
 
     // input u : acceleration, augular_velocity
     float am[3], wm[3];
@@ -100,8 +100,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
             wm[0]*cos(mean_ns(4)) - 0*cos(mean_ns(4)) - mean_ns(9)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[2]*sin(mean_ns(4)) - mean_ns(11)*sin(mean_ns(4)),\
             -(0*cos(mean_ns(3)) - wm[1]*cos(mean_ns(3)) + mean_ns(10)*cos(mean_ns(3)) - 0*cos(mean_ns(4))*sin(mean_ns(3)) + wm[2]*cos(mean_ns(4))*sin(mean_ns(3)) - mean_ns(11)*cos(mean_ns(4))*sin(mean_ns(3)) + 0*sin(mean_ns(3))*sin(mean_ns(4)) - wm[0]*sin(mean_ns(3))*sin(mean_ns(4)) + mean_ns(9)*sin(mean_ns(3))*sin(mean_ns(4)))/cos(mean_ns(3)),\
             -(0*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3)),\
-            (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(0 - am[2] + mean_ns(14)) - (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(0 - am[0] + mean_ns(12)) - cos(mean_ns(3))*sin(mean_ns(5))*(0 - am[1] + mean_ns(13)) + g,\
-            (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(0 - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(0 - am[1] + mean_ns(13)) + g,\
+            (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(0 - am[2] + mean_ns(14)) - (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(0 - am[0] + mean_ns(12)) - cos(mean_ns(3))*sin(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
+            (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(0 - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
             sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) + g,\
             0,\
             0,\
