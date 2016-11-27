@@ -11,7 +11,7 @@
 #include <tf/transform_datatypes.h>
 #include <math.h>
 
-#define DEBUG false
+#define DEBUG true
 
 using namespace std;
 using namespace Eigen;
@@ -59,9 +59,9 @@ float g = 9.81;
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
 	#ifdef DEBUG
-    ROS_INFO("Imu Seq: [%d]", msg->header.seq);
-    ROS_INFO("Imu Orientation x: [%f], y: [%f], z: [%f], w: [%f]", \
-    msg->orientation.x,msg->orientation.y,msg->orientation.z,msg->orientation.w);
+    // ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+    // ROS_INFO("Imu Orientation x: [%f], y: [%f], z: [%f], w: [%f]", \
+    // msg->orientation.x,msg->orientation.y,msg->orientation.z,msg->orientation.w);
 	#endif
     MatrixXd At = MatrixXd::Identity(15, 15);
     MatrixXd Bt = MatrixXd::Identity(15, 6);
@@ -260,7 +260,19 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     ekf_odom.pose.pose.orientation.x = Q_output.x();
     ekf_odom.pose.pose.orientation.y = Q_output.y();
     ekf_odom.pose.pose.orientation.z = Q_output.z();
+	// TODO: add full info for nav_msgs
+	ekf_odom.child_frame_id = "test_frame";
+	ekf_odom.twist.twist.linear.x = 0.0;
+	ekf_odom.twist.twist.linear.y = 0.0;
+	ekf_odom.twist.twist.linear.z = 0.0;
+
     odom_pub.publish(ekf_odom);
+	 #ifdef DEBUG
+        ROS_INFO("Seq: [%d]", ekf_odom.header.seq);
+		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", ekf_odom.pose.pose.position.x,ekf_odom.pose.pose.position.y, ekf_odom.pose.pose.position.z);
+		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
+		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
+    #endif
 }
 
 int main(int argc, char **argv)
