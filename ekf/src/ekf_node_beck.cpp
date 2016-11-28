@@ -59,9 +59,9 @@ float g = 9.81;
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
 	#ifdef DEBUG
-    // ROS_INFO("Imu Seq: [%d]", msg->header.seq);
-    // ROS_INFO("Imu Orientation x: [%f], y: [%f], z: [%f], w: [%f]", \
-    // msg->orientation.x,msg->orientation.y,msg->orientation.z,msg->orientation.w);
+    ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+    ROS_INFO("Imu Orientation x: [%f], y: [%f], z: [%f], w: [%f]", \
+    msg->orientation.x,msg->orientation.y,msg->orientation.z,msg->orientation.w);
 	#endif
     MatrixXd At = MatrixXd::Identity(15, 15);
     MatrixXd Bt = MatrixXd::Identity(15, 6);
@@ -251,6 +251,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
 
     nav_msgs::Odometry ekf_odom;
+	ekf_odom.header.seq = msg->header.seq;
     ekf_odom.header.stamp = msg->header.stamp;
     ekf_odom.header.frame_id = "ekf_odom";
     ekf_odom.pose.pose.position.x = mean_ns(0);
@@ -268,6 +269,12 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
     odom_pub.publish(ekf_odom);
 	 #ifdef DEBUG
+		cout<<" The odometry before EKF:" << endl;
+        ROS_INFO("Seq: [%d]", msg->header.seq);
+		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.position.x,camera_pose_wi_geo.position.y, camera_pose_wi_geo.position.z);
+		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", camera_pose_wi_geo.orientation.x, camera_pose_wi_geo.orientation.y, camera_pose_wi_geo.orientation.z, camera_pose_wi_geo.orientation.w);
+//		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
+        cout<<" The odometry after EKF:" << endl;
         ROS_INFO("Seq: [%d]", ekf_odom.header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", ekf_odom.pose.pose.position.x,ekf_odom.pose.pose.position.y, ekf_odom.pose.pose.position.z);
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
