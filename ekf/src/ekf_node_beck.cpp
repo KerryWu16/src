@@ -16,8 +16,8 @@
 using namespace std;
 using namespace Eigen;
 ros::Publisher odom_pub;
-MatrixXd Q = MatrixXd::Identity(12, 12); // For propogate, IMU noise
-MatrixXd Rt = MatrixXd::Identity(6,6);   // For update, Odometry noise
+MatrixXd Q; // For propogate, IMU noise
+MatrixXd Rt;   // For update, Odometry noise
 
 
 // ros::Time current_time, last_time;
@@ -34,12 +34,12 @@ ros::Time last_time;
     [x4] x(9)  x(10) x(11)= gyroscope bias
     [x5] x(12) x(13) x(14)= accelerator bias
 */
-VectorXd mean_ps = VectorXd::Identity(15, 1);
-VectorXd mean_ba = VectorXd::Identity(15, 1);
-VectorXd mean_ns = VectorXd::Identity(15, 1);
-MatrixXd cov_ps = MatrixXd::Identity(15, 15);
-MatrixXd cov_ba = MatrixXd::Identity(15, 15);
-MatrixXd cov_ns = MatrixXd::Identity(15, 15);
+VectorXd mean_ps;
+VectorXd mean_ba;
+VectorXd mean_ns;
+MatrixXd cov_ps;
+MatrixXd cov_ba;
+MatrixXd cov_ns;
 
 // Initially use a constant, later need to read from the environment
 float g = 9.81;
@@ -129,7 +129,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
      0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
 
- 
+
 	Bt <<
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0,
@@ -147,7 +147,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
                                                   0,                 0,                                              0,                            0, 0,                             0,
                                                   0,                 0,                                              0,                            0, 0,                             0;
 
- 
+
     Ut <<
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
                                                     0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
@@ -206,7 +206,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
 	// broadcast the IMU frame to world frame transformation to tf
 	br.sendTransform( tf::StampedTransform(camera_pose_wi, msg->header.stamp, "world", "IMU_frame"));
-	
+
 
     VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
     zt(0) = camera_pose_wi_geo.position.x;
@@ -273,8 +273,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
         ROS_INFO("Seq: [%d]", msg->header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.position.x,camera_pose_wi_geo.position.y, camera_pose_wi_geo.position.z);
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", camera_pose_wi_geo.orientation.x, camera_pose_wi_geo.orientation.y, camera_pose_wi_geo.orientation.z, camera_pose_wi_geo.orientation.w);
-//		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
-        cout<<" The odometry after EKF:" << endl;
+		cout<<" The odometry after EKF:" << endl;
         ROS_INFO("Seq: [%d]", ekf_odom.header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", ekf_odom.pose.pose.position.x,ekf_odom.pose.pose.position.y, ekf_odom.pose.pose.position.z);
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
