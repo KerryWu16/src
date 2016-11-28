@@ -5,7 +5,7 @@
 
     <node pkg="ekf" type="ekf" name="ekf" output="screen">
         <remap from="~imu" to="/mavlink/imu_standard"/>
-        <remap from="~tag_odom" to="/tag_detector/odom_ref"/>
+        <remap from="~tag_odom" to="/tag_detector/odom_yourwork"/>
     </node>
 
 

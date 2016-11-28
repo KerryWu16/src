@@ -48,6 +48,12 @@ cd ../src && cp ekf_node_chongzi.cpp ekf_node.cpp && cd ../../../ && catkin_make
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
 
+    
+    #ifdef DEBUG
+    // ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+    // ROS_INFO("Imu Orientation x: [%f], y: [%f], z: [%f], w: [%f]", \
+    // msg->orientation.x,msg->orientation.y,msg->orientation.z,msg->orientation.w);
+    #endif
     // noise n: linear_acceleration_covariance, angular_velocity_covariance,
     //          acc bias noise, gyro bias noise
     //          assume the covariance is diagonalized and x, y, z are independent
@@ -251,7 +257,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
         cout <<"ut"<<endl<<ut<<endl; 
 
 
-   /* Quaterniond Q_ekfwork;
+    Quaterniond Q_ekfwork;
     double simix=ut(3)/2;
     double simiy=ut(4)/2;
     double simiz=ut(5)/2;
@@ -269,7 +275,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     odom_ekfwork.pose.pose.orientation.x = Q_ekfwork.x();
     odom_ekfwork.pose.pose.orientation.y = Q_ekfwork.y();
     odom_ekfwork.pose.pose.orientation.z = Q_ekfwork.z();
-    pub_odom_ekfwork.publish(odom_ekfwork);   */
+    pub_odom_ekfwork.publish(odom_ekfwork);   
 }
 
 int main(int argc, char **argv)

@@ -256,8 +256,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		Vector3d T_iw = R_ic * T_cw + T_ic;
 		
 		// tag world to IMU
-		Matrix3d R_wi = R_iw.transpose();
-		Vector3d T_wi = -R_iw.transpose()*T_iw;
+		Matrix3d R_wi = R_iw.inverse();
+		Vector3d T_wi = -R_iw.inverse()*T_iw;
 
 		VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
 		zt(0) = T_wi(0);
