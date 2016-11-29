@@ -31,5 +31,5 @@
 # ~ files
 *.cpp~
 *.h~
-*.CMakeLists.txt~
+*.txt~
 *.launch~

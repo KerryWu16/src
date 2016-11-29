@@ -192,7 +192,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 
 void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
-	
+
 
     //your code for update
     //camera position in the IMU frame = (0, -0.04, -0.02)
@@ -204,22 +204,26 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// static tf::TransformBroadcaster br;
 
 		// Get the world frame in camera frame transformation from the msg
-		tf::Pose camera_pose_wc;
-		tf::poseMsgToTF(msg->pose.pose, camera_pose_wc);
+		tf::Transform camera_pose_cw;
+		tf::poseMsgToTF(msg->pose.pose, camera_pose_cw);
 
 		// Record the camera frame in the IMU frame from TA
 		tf::Transform transform_ic;
 		transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
 		transform_ic.setRotation( tf::Quaternion(0, 0, -1, 0) );
-		tf::Pose camera_pose_wi = camera_pose_wc * transform_ic.inverse();
+		tf::Transform camera_pose_wi = (transform_ic * camera_pose_cw).inverse();
 
 		geometry_msgs::Pose camera_pose_wi_geo;
-		tf::poseTFToMsg(camera_pose_wi, camera_pose_wi_geo);
+		tf::transformTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
-		cout << "camera_pose_wi_geo transformation is: " << endl << camera_pose_wi_geo.position.x << endl;
-		cout << camera_pose_wi_geo.position.y << endl << camera_pose_wi_geo.position.z << endl;
-		cout << "quaternion is: " << endl << camera_pose_wi_geo.orientation.w << endl; 
-		cout << camera_pose_wi_geo.orientation.x << endl << camera_pose_wi_geo.orientation.y << endl;
+		cout << "camera_pose_wi_geo transformation from TF is: " << endl;
+		cout << camera_pose_wi_geo.position.x << endl;
+		cout << camera_pose_wi_geo.position.y << endl;
+		cout << camera_pose_wi_geo.position.z << endl;
+		cout << "quaternion from TF is: " << endl;
+		cout << camera_pose_wi_geo.orientation.w << endl;
+		cout << camera_pose_wi_geo.orientation.x << endl;
+		cout << camera_pose_wi_geo.orientation.y << endl;
 		cout << camera_pose_wi_geo.orientation.z << endl;
 
 		VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
@@ -232,12 +236,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		R_wi_quat.x() = camera_pose_wi_geo.orientation.x;
 		R_wi_quat.y() = camera_pose_wi_geo.orientation.y;
 		R_wi_quat.z() = camera_pose_wi_geo.orientation.z;
-		Matrix3d R_wi = R_wi_quat.toRotationMatrix();
-		zt(3) = asin(R_wi(1, 2));
-		zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
-		zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
+		Matrix3d R_wi_2 = R_wi_quat.toRotationMatrix();
+		zt(3) = asin(R_wi_2(1, 2));
+		zt(4) = atan2(-R_wi_2(1, 0), R_wi_2(1, 1)); // pitch_wi
+		zt(5) = atan2(-R_wi_2(0, 2), R_wi_2(2, 2)); // yaw_wi
 
-	#else 
 		Vector3d T_cw;
 		Quaterniond R_cw_quat;
 		// camera to tag world
@@ -257,21 +260,32 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// IMU to tag world
 		Matrix3d R_iw = R_ic * R_cw;
 		Vector3d T_iw = R_ic * T_cw + T_ic;
-		
+
 		// tag world to IMU
 		Matrix3d R_wi = R_iw.inverse();
 		Vector3d T_wi = -R_iw.inverse()*T_iw;
+		Quaterniond R_wi_q(R_wi);
 
-		VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
-		zt(0) = T_wi(0);
-		zt(1) = T_wi(1);
-		zt(2) = T_wi(2);
-		// Quaternino -> rotation matrix -> ZXY Euler
-		zt(3) = asin(R_wi(1, 2));
-		zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
-		zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
+		cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
+		cout << T_wi(0) << endl;
+		cout << T_wi(1) << endl;
+		cout << T_wi(2) << endl;
+		cout << "quaternion from TF is: " << endl;
+		cout << R_wi_q.w() << endl;
+		cout << R_wi_q.x() << endl;
+		cout << R_wi_q.y() << endl;
+		cout << R_wi_q.z() << endl;
+
+		// VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
+		// zt(0) = T_wi(0);
+		// zt(1) = T_wi(1);
+		// zt(2) = T_wi(2);
+		// // Quaternino -> rotation matrix -> ZXY Euler
+		// zt(3) = asin(R_wi(1, 2));
+		// zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
+		// zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
 	#endif
-	
+
 
     #if DEBUG_ODOM
         cout<<" The x of camera: " << zt(0) <<endl;
