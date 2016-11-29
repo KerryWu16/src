@@ -114,7 +114,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
             -(0*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3)),\
             (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(0 - am[2] + mean_ns(14)) - (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(0 - am[0] + mean_ns(12)) - cos(mean_ns(3))*sin(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
             (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(0 - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
-            sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) - g,\
+            sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) + g,\
             0,\
             0,\
             0,\

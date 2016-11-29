@@ -114,7 +114,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
             -(0*cos(mean_ns(4)) - wm[2]*cos(mean_ns(4)) + mean_ns(11)*cos(mean_ns(4)) - 0*sin(mean_ns(4)) + wm[0]*sin(mean_ns(4)) - mean_ns(9)*sin(mean_ns(4)))/cos(mean_ns(3)),\
             (cos(mean_ns(5))*sin(mean_ns(4)) - cos(mean_ns(4))*sin(mean_ns(3))*sin(mean_ns(5)))*(0 - am[2] + mean_ns(14)) - (cos(mean_ns(4))*cos(mean_ns(5)) + sin(mean_ns(3))*sin(mean_ns(4))*sin(mean_ns(5)))*(0 - am[0] + mean_ns(12)) - cos(mean_ns(3))*sin(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
             (cos(mean_ns(4))*sin(mean_ns(5)) - cos(mean_ns(5))*sin(mean_ns(3))*sin(mean_ns(4)))*(0 - am[0] + mean_ns(12)) - (sin(mean_ns(4))*sin(mean_ns(5)) + cos(mean_ns(4))*cos(mean_ns(5))*sin(mean_ns(3)))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*cos(mean_ns(5))*(0 - am[1] + mean_ns(13)),\
-            sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) + g,\
+            sin(mean_ns(3))*(0 - am[1] + mean_ns(13)) - cos(mean_ns(3))*cos(mean_ns(4))*(0 - am[2] + mean_ns(14)) - cos(mean_ns(3))*sin(mean_ns(4))*(0 - am[0] + mean_ns(12)) - g,\
             0,\
             0,\
             0,\
@@ -201,20 +201,17 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     //							      0, 1, 0,
     //                                0, 0, -1;
 	#if DEBUG_TF
-		static tf::TransformBroadcaster br;
+		// static tf::TransformBroadcaster br;
 
 		// Get the world frame in camera frame transformation from the msg
-		tf::Pose camera_pose_cw;
-		tf::poseMsgToTF(msg->pose.pose, camera_pose_cw);
+		tf::Pose camera_pose_wc;
+		tf::poseMsgToTF(msg->pose.pose, camera_pose_wc);
 
 		// Record the camera frame in the IMU frame from TA
 		tf::Transform transform_ic;
 		transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
-		transform_ic.setRotation( tf::Quaternion(0, 0, 1, 0) );
-		tf::Pose camera_pose_iw = transform_ic * camera_pose_cw;
-
-		// Calculate the IMU frame in the world frame
-		tf::Pose camera_pose_wi = camera_pose_iw.inverse();
+		transform_ic.setRotation( tf::Quaternion(0, 0, -1, 0) );
+		tf::Pose camera_pose_wi = camera_pose_wc * transform_ic.inverse();
 
 		geometry_msgs::Pose camera_pose_wi_geo;
 		tf::poseTFToMsg(camera_pose_wi, camera_pose_wi_geo);
@@ -229,11 +226,17 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		zt(0) = camera_pose_wi_geo.position.x;
 		zt(1) = camera_pose_wi_geo.position.y;
 		zt(2) = camera_pose_wi_geo.position.z;
-		geometry_msgs::Quaternion q_wi = camera_pose_wi_geo.orientation;
-		// Quaternino -> rotation matrix -> ZXY Euler
-		zt(3) = asin(2*(q_wi.y * q_wi.z + q_wi.x * q_wi.w));
-		zt(4) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.y,2)) / cos(zt(3))); // pitch_wi
-		zt(5) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.z,2))  / cos(zt(3))); // yaw_wi
+		// From quaternion to rotation matrix and then ZXY Euler
+		Eigen::Quaterniond R_wi_quat;
+		R_wi_quat.w() = camera_pose_wi_geo.orientation.w;
+		R_wi_quat.x() = camera_pose_wi_geo.orientation.x;
+		R_wi_quat.y() = camera_pose_wi_geo.orientation.y;
+		R_wi_quat.z() = camera_pose_wi_geo.orientation.z;
+		Matrix3d R_wi = R_wi_quat.toRotationMatrix();
+		zt(3) = asin(R_wi(1, 2));
+		zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
+		zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
+
 	#else 
 		Vector3d T_cw;
 		Quaterniond R_cw_quat;
@@ -264,9 +267,9 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		zt(1) = T_wi(1);
 		zt(2) = T_wi(2);
 		// Quaternino -> rotation matrix -> ZXY Euler
-		zt(3) = asin(R_wi(2, 1));
-		zt(4) = acos(R_wi(2, 2) / cos(zt(3))); // pitch_wi
-		zt(5) = acos(R_wi(1, 1) / cos(zt(3))); // yaw_wi
+		zt(3) = asin(R_wi(1, 2));
+		zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
+		zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
 	#endif
 	
 
