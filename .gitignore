@@ -27,3 +27,9 @@
 *.exe
 *.out
 *.app
+
+# ~ files
+*.cpp~
+*.h~
+*.txt~
+*.launch~
