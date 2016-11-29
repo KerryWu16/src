@@ -13,7 +13,7 @@
 
 #define DEBUG_ODOM false
 #define DEBUG_IMU false
-#define DEBUG_TF true
+#define DEBUG_TF false
 
 using namespace std;
 using namespace Eigen;
@@ -61,13 +61,13 @@ float g = 9.81;
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
 	#if DEBUG_IMU
-	cout << "Before process, the mean_ps is: " << endl << mean_ps << endl;
-	cout << "The cov_ps is: " << endl << cov_ps << endl;
-    	// ROS_INFO("Imu Seq: [%d]", msg->header.seq);
-    	// ROS_INFO("Imu linear acceleration x: [%f], y: [%f], z: [%f]", \
-		// msg->linear_acceleration.x,msg->linear_acceleration.y,msg->linear_acceleration.z);
-    	// ROS_INFO("Imu angular velocity x: [%f], y: [%f], z: [%f]", \
-    	// msg->angular_velocity.x,msg->angular_velocity.y,msg->angular_velocity.z);
+		// cout << "Before process, the mean_ps is: " << endl << mean_ps << endl;
+		// cout << "The cov_ps is: " << endl << cov_ps << endl;
+    	ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+    	ROS_INFO("Imu linear acceleration x: [%f], y: [%f], z: [%f]", \
+		msg->linear_acceleration.x,msg->linear_acceleration.y,msg->linear_acceleration.z);
+    	ROS_INFO("Imu angular velocity x: [%f], y: [%f], z: [%f]", \
+    	msg->angular_velocity.x,msg->angular_velocity.y,msg->angular_velocity.z);
 	#endif
     MatrixXd At = MatrixXd::Identity(15, 15);
     MatrixXd Bt = MatrixXd::Identity(15, 6);
@@ -198,80 +198,118 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     //			   RotationMatrix << -1, 0, 0,
     //							      0, 1, 0,
     //                                0, 0, -1;
+	
+	VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
+
 	// Get the world frame in camera frame transformation from the msg
 	tf::Transform camera_pose_cw;
 	tf::poseMsgToTF(msg->pose.pose, camera_pose_cw);
+
+/*
+	geometry_msgs::Transform camera_pose_cw_geo;
+	tf::transformTFToMsg(camera_pose_cw, camera_pose_cw_geo);
+	cout << "initial message save from TF is: " << endl;
+	cout << camera_pose_cw_geo.translation.x << endl;
+	cout << camera_pose_cw_geo.translation.y << endl;
+	cout << camera_pose_cw_geo.translation.z << endl;
+	cout << "quaternion from TF is: " << endl;
+	cout << camera_pose_cw_geo.rotation.w << endl;
+	cout << camera_pose_cw_geo.rotation.x << endl;
+	cout << camera_pose_cw_geo.rotation.y << endl;
+	cout << camera_pose_cw_geo.rotation.z << endl;
+*/
 
 	// Record the camera frame in the IMU frame from TA
 	tf::Transform transform_ic;
 	transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
 	transform_ic.setRotation( tf::Quaternion(0, 0, -1, 0) );
-	tf::Transform camera_pose_wi = (transform_ic * camera_pose_cw).inverse();
+	tf::Transform camera_pose_iw = transform_ic * camera_pose_cw;
+	tf::Transform camera_pose_wi = camera_pose_iw.inverse();
 
-	geometry_msgs::Pose camera_pose_wi_geo;
+	geometry_msgs::Transform camera_pose_wi_geo;
 	tf::transformTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
 	cout << "camera_pose_wi_geo transformation from TF is: " << endl;
-	cout << camera_pose_wi_geo.position.x << endl;
-	cout << camera_pose_wi_geo.position.y << endl;
-	cout << camera_pose_wi_geo.position.z << endl;
+	cout << camera_pose_wi_geo.translation.x << endl;
+	cout << camera_pose_wi_geo.translation.y << endl;
+	cout << camera_pose_wi_geo.translation.z << endl;
 	cout << "quaternion from TF is: " << endl;
-	cout << camera_pose_wi_geo.orientation.w << endl;
-	cout << camera_pose_wi_geo.orientation.x << endl;
-	cout << camera_pose_wi_geo.orientation.y << endl;
-	cout << camera_pose_wi_geo.orientation.z << endl;
+	cout << camera_pose_wi_geo.rotation.w << endl;
+	cout << camera_pose_wi_geo.rotation.x << endl;
+	cout << camera_pose_wi_geo.rotation.y << endl;
+	cout << camera_pose_wi_geo.rotation.z << endl;
+	
+	// Transformation from Eigen
+	Vector3d T_cw;
+	Quaterniond R_cw_quat;
+	// camera to tag world
+	R_cw_quat.w() = msg->pose.pose.orientation.w;
+	R_cw_quat.x() = msg->pose.pose.orientation.x;
+	R_cw_quat.y() = msg->pose.pose.orientation.y;
+	R_cw_quat.z() = msg->pose.pose.orientation.z;
+	T_cw[0] = msg->pose.pose.position.x;
+	T_cw[1] = msg->pose.pose.position.y;
+	T_cw[2] = msg->pose.pose.position.z;
+	Matrix3d R_cw = R_cw_quat.toRotationMatrix();
 
-	VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
-	zt(0) = camera_pose_wi_geo.position.x;
-	zt(1) = camera_pose_wi_geo.position.y;
-	zt(2) = camera_pose_wi_geo.position.z;
-	// From quaternion to rotation matrix and then ZXY Euler
-	Eigen::Quaterniond R_wi_quat;
-	R_wi_quat.w() = camera_pose_wi_geo.orientation.w;
-	R_wi_quat.x() = camera_pose_wi_geo.orientation.x;
-	R_wi_quat.y() = camera_pose_wi_geo.orientation.y;
-	R_wi_quat.z() = camera_pose_wi_geo.orientation.z;
-	Matrix3d R_wi_2 = R_wi_quat.toRotationMatrix();
-	zt(3) = asin(R_wi_2(1, 2));
-	zt(4) = atan2(-R_wi_2(1, 0), R_wi_2(1, 1)); // pitch_wi
-	zt(5) = atan2(-R_wi_2(0, 2), R_wi_2(2, 2)); // yaw_wi
+/*
+	cout << "initial message save from Eigen is: " << endl;
+	cout << T_cw[0] << endl;
+	cout << T_cw[1] << endl;
+	cout << T_cw[2] << endl;
+	cout << "quaternion from Eigen is: " << endl;
+	cout << R_cw_quat.w() << endl;
+	cout << R_cw_quat.x() << endl;
+	cout << R_cw_quat.y() << endl;
+	cout << R_cw_quat.z() << endl;
+*/
+	// IMU to camera frame
+	Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
+    Vector3d T_ic = Vector3d(0, -0.04, -0.02);
 
-	#if DEBUG_TF
-		Vector3d T_cw;
-		Quaterniond R_cw_quat;
-		// camera to tag world
-		R_cw_quat.w() = msg->pose.pose.orientation.w;
-		R_cw_quat.x() = msg->pose.pose.orientation.x;
-		R_cw_quat.y() = msg->pose.pose.orientation.y;
-		R_cw_quat.z() = msg->pose.pose.orientation.z;
-		T_cw[0] = msg->pose.pose.position.x;
-		T_cw[1] = msg->pose.pose.position.y;
-		T_cw[2] = msg->pose.pose.position.z;
-		Matrix3d R_cw = R_cw_quat.toRotationMatrix();
+	// IMU to tag world
+	Matrix3d R_iw = R_ic * R_cw;
+	Vector3d T_iw = R_ic * T_cw + T_ic;
 
-		// IMU to camera frame
-		Matrix3d R_ic = Quaterniond(0, 0, 1, 0).toRotationMatrix();
-	    Vector3d T_ic = Vector3d(0, -0.04, -0.02);
+	// tag world to IMU
+	Matrix3d R_wi = R_iw.inverse();
+	Vector3d T_wi = -R_iw.inverse()*T_iw;
+	Quaterniond R_wi_q(R_wi);
 
-		// IMU to tag world
-		Matrix3d R_iw = R_ic * R_cw;
-		Vector3d T_iw = R_ic * T_cw + T_ic;
+	cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
+	cout << T_wi(0) << endl;
+	cout << T_wi(1) << endl;
+	cout << T_wi(2) << endl;
+	cout << "quaternion from Eigen is: " << endl;
+	cout << R_wi_q.w() << endl;
+	cout << R_wi_q.x() << endl;
+	cout << R_wi_q.y() << endl;
+	cout << R_wi_q.z() << endl;
+	if (DEBUG_TF) {
+		zt(0) = camera_pose_wi_geo.translation.x;
+		zt(1) = camera_pose_wi_geo.translation.y;
+		zt(2) = camera_pose_wi_geo.translation.z;
+		// From quaternion to rotation matrix and then ZXY Euler
+		Eigen::Quaterniond R_wi_quat;
+		R_wi_quat.w() = camera_pose_wi_geo.rotation.w;
+		R_wi_quat.x() = camera_pose_wi_geo.rotation.x;
+		R_wi_quat.y() = camera_pose_wi_geo.rotation.y;
+		R_wi_quat.z() = camera_pose_wi_geo.rotation.z;
+		Matrix3d R_wi_2 = R_wi_quat.toRotationMatrix();
+		zt(3) = asin(R_wi_2(1, 2));
+		zt(4) = atan2(-R_wi_2(1, 0), R_wi_2(1, 1)); // pitch_wi
+		zt(5) = atan2(-R_wi_2(0, 2), R_wi_2(2, 2)); // yaw_wi
+		}
+	else {
+		// Use the result from Eigen in rviz
 
-		// tag world to IMU
-		Matrix3d R_wi = R_iw.inverse();
-		Vector3d T_wi = -R_iw.inverse()*T_iw;
-		Quaterniond R_wi_q(R_wi);
-
-		cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
-		cout << T_wi(0) << endl;
-		cout << T_wi(1) << endl;
-		cout << T_wi(2) << endl;
-		cout << "quaternion from TF is: " << endl;
-		cout << R_wi_q.w() << endl;
-		cout << R_wi_q.x() << endl;
-		cout << R_wi_q.y() << endl;
-		cout << R_wi_q.z() << endl;
-	#endif
+		zt(0) = T_wi(0);
+		zt(1) = T_wi(1);
+		zt(2) = T_wi(2);
+		zt(3) = asin(R_wi(1, 2));
+		zt(4) = atan2(-R_wi(1, 0), R_wi(1, 1)); // pitch_wi
+		zt(5) = atan2(-R_wi(0, 2), R_wi(2, 2)); // yaw_wi
+	}
 
 	// Check if the angle passes the singularity point for ZXY Euler angle
 	double phi_ppg = mean_ba(3);
@@ -345,6 +383,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
 		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
     #endif
+	cout<<" The end of Odometry callback" << endl << endl;	
 }
 
 int main(int argc, char **argv)

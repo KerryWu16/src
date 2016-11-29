@@ -52,7 +52,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     //          acc bias noise, gyro bias noise
     //          assume the covariance is diagonalized and x, y, z are independent
     //          Given by the TA
-        MatrixXd Sigmat_1(15,15);
+    MatrixXd Sigmat_1(15,15);
 	Sigmat_1 = Sigmat;
 	MatrixXd ut_1(15,1);
 	ut_1 = ut;
@@ -150,7 +150,7 @@ MatrixXd Ut(15,12);
         // Prediction Step
         u_t = ut_1 + dt * f;
 	//Sigma_t=Ft*Sigmat_1*Ft' + Vt*Q*Vt'
-        Sigma_t = Ft * Sigmat_1 * Ft.adjoint() + Vt * Q * Vt.adjoint();
+        Sigma_t = Ft * Sigmat_1 * Ft.transpose() + Vt * Q * Vt.transpose();
 
 }
 
@@ -203,24 +203,26 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     //Vector3d cTi;
     cRw = Quaterniond(q_wi.x,q_wi.y,q_wi.z,q_wi.w).toRotationMatrix();//CRW from world frame to camera frame.
     cTw <<     CamZt(0), CamZt(1), CamZt(2) ;
-    wRc = cRw.adjoint();
+    wRc = cRw.inverse();
     iRc = Rcam;
-    cRi = iRc.adjoint();
+    cRi = iRc.inverse();
     iTc = Tcam;
     wRi = wRc * cRi;
-    iRw = wRi.adjoint();
-    wTi = -1 * wRc * cRw *iTc + wRc * cTw;                                       
+    iRw = wRi.inverse();
+    wTi = -1 * wRc * cRi *iTc + wRc * cTw;                                       
     MatrixXd ZR(3,3);
     ZR = wRi; 
-    cout << "wRi" << endl << ZR <<endl; 
+    cout << "wRc" << endl << wRc <<endl; 
+    cout << "cRw" << endl << cRw <<endl;
+    cout << "iTc" << endl << iTc <<endl;
     //cout << "|ZR|" << endl << ZR.determinant() <<endl;   
     /*cout << "Angles" << endl << ZR.eulerAngles(1,0,2) <<endl;  */ 
     //Vector3d Angle = ZR.eulerAngles(2, 0, 1);
 
     MatrixXd Zt(6,1);
-    Zt(0) = CamZt(0) - Tcam(0);
-    Zt(1) = CamZt(1) - Tcam(1);
-    Zt(2) = CamZt(2) - Tcam(2); 
+    Zt(0) = wTi(0);
+    Zt(1) = wTi(1);
+    Zt(2) = wTi(2);  
  
     double roll = asin(ZR(1,2));
     double pitch = atan(-ZR(0,2)/ZR(2,2));
@@ -249,13 +251,13 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	//Kt=Sigma_t * Ct' * (Ct * Sigma_t * Ct' + Wt * R *Wt')
     MatrixXd Kt(15,6);
     MatrixXd MidMatrix(6,6);
-    MidMatrix = Ct * Sigma_t * Ct.adjoint() + Wt * Rt * Wt.adjoint();
-	Kt = Sigma_t * Ct.adjoint() *(MidMatrix.inverse());
+    MidMatrix = Ct * Sigma_t * Ct.transpose() + Wt * Rt * Wt.transpose();
+	Kt = Sigma_t * Ct.transpose() *(MidMatrix.inverse());
 	//ut=u_t + 
 	ut = u_t + Kt * (Zt - g);
 	Sigmat = Sigma_t - Kt * Ct * Sigma_t;
         cout <<"ut"<<endl<<ut<<endl; 
-
+        cout <<"Kt"<<endl<<Kt<<endl;
 
  
     

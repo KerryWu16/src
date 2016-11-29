@@ -1,0 +1,12 @@
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/src/CMakeFiles/aruco.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_board_pix2meters.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_create_board.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_create_marker.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_selectoptimalmarkers.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_simple.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_simple_board.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_test.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_test_board.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_test_board_gl.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/utils/CMakeFiles/aruco_test_gl.dir
+/home/ubuntu/catkin_ws/src/aruco-1.2.4/build/CMakeFiles/uninstall.dir
