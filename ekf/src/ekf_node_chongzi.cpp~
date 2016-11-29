@@ -16,6 +16,7 @@
 using namespace std;
 using namespace Eigen;
 ros::Publisher odom_pub;
+ros::Publisher pub_odom_ekf_obs;
 MatrixXd Q = MatrixXd::Identity(12, 12); // For propogate, IMU noise
 MatrixXd Rt = MatrixXd::Identity(6,6);   // For update, Odometry noise
 MatrixXd ut = MatrixXd::Identity(15, 1);
@@ -26,7 +27,7 @@ bool img_checktemp;
 double dt;
 double time_old;
 
-//ros::Publisher pub_odom_ekfwork;
+
 
 // Initially use a constant, later need to read from the environment
 
@@ -87,57 +88,57 @@ time_old = msg->header.stamp.toSec();
 	MatrixXd f(15,1);
       f<<     
 x31,
-                                                                                                                                                                                     x32,
-                                                                                                                                                                                     x33,
-                                                                       - (cos(x22)*(ng1 - wm1 + x41))/(cos(x22)*cos(x22) + sin(x22)*sin(x22)) - (sin(x22)*(ng3 - wm3 + x43))/(cos(x22)*cos(x22) + sin(x22)*sin(x22)),
- wm2 - ng2 - x42 - (sin(x21)*sin(x22)*(ng1 - wm1 + x41))/(cos(x21)*cos(x22)*cos(x22) + cos(x21)*sin(x22)*sin(x22)) + (cos(x22)*sin(x21)*(ng3 - wm3 + x43))/(cos(x21)*cos(x22)*cos(x22) + cos(x21)*sin(x22)*sin(x22)),
-                                     (sin(x22)*(ng1 - wm1 + x41))/(cos(x21)*cos(x22)*cos(x22) + cos(x21)*sin(x22)*sin(x22)) - (cos(x22)*(ng3 - wm3 + x43))/(cos(x21)*cos(x22)*cos(x22) + cos(x21)*sin(x22)*sin(x22)),
-           cos(x21)*sin(x22)*(na3 - am3 + x53) - (cos(x22)*sin(x23) + cos(x23)*sin(x21)*sin(x22))*(na2 - am2 + x52) - (cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51),
-                                                                                  cos(x21)*sin(x23)*(na1 - am1 + x51) - cos(x21)*cos(x23)*(na2 - am2 + x52) - sin(x21)*(na3 - am3 + x53),
- -982/100 - (sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21))*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - (cos(x23)*sin(x22) + cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51),
-                                                                                                                                                                                    nbg1,
-                                                                                                                                                                                    nbg2,
-                                                                                                                                                                                    nbg3,
-                                                                                                                                                                                    nba1,
-                                                                                                                                                                                    nba2,
-                                                                                                                                                                                    nba3; 
+                                                                                                                                                                                                    x32,
+                                                                                                                                                                                                    x33,
+                                                                                                                wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
+ -(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
+                                                                                                    -(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
+                          (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52),
+                          (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52),
+                                                                                       sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) - 982/100,
+                                                                                                                                                                                                   nbg1,
+                                                                                                                                                                                                   nbg2,
+                                                                                                                                                                                                   nbg3,
+                                                                                                                                                                                                   nba1,
+                                                                                                                                                                                                   nba2,
+                                                                                                                                                                                                   nba3; 
 
 /********************************************f********************************************************/
 /********************************************At********************************************************/
 MatrixXd At(15,15);
-	At <<  0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                           wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                  0,                                                0,                                                0,
-           0, 0, 0,                                    (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/(cos(x21)*cos(x21)),                    -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                  0,                                                0,                                                0,
-           0, 0, 0,                        -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/(cos(x21)*cos(x21)),                                (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                  0,                                                0,                                                0,
-           0, 0, 0, (sin(x21)*sin(x23) - cos(x21)*cos(x23)*sin(x22))*(na2 - am2 + x52) - (cos(x21)*sin(x23) + cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x22)*cos(x23)*sin(x21)*(na2 - am2 + x52) + cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), cos(x22)*sin(x23)*(na1 - am1 + x51) - (cos(x23)*sin(x21) + cos(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53) - (cos(x21)*cos(x23) - sin(x21)*sin(x22)*sin(x23))*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, -cos(x22)*cos(x23), - cos(x21)*sin(x23) - cos(x23)*sin(x21)*sin(x22),   cos(x21)*cos(x23)*sin(x22) - sin(x21)*sin(x23),
-           0, 0, 0, (cos(x23)*sin(x21) + cos(x21)*sin(x22)*sin(x23))*(na2 - am2 + x52) - (cos(x21)*cos(x23) - sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), cos(x22)*sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - sin(x22)*sin(x23)*(na1 - am1 + x51), (cos(x21)*sin(x23) + cos(x23)*sin(x21)*sin(x22))*(na2 - am2 + x52) + (sin(x21)*sin(x23) - cos(x21)*cos(x23)*sin(x22))*(na3 - am3 + x53) + cos(x22)*cos(x23)*(na1 - am1 + x51), 0, 0, 0,                             0,  0,                            0,  cos(x22)*sin(x23),   sin(x21)*sin(x22)*sin(x23) - cos(x21)*cos(x23), - cos(x23)*sin(x21) - cos(x21)*sin(x22)*sin(x23),
-           0, 0, 0,                                                               cos(x21)*cos(x22)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53),                            cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x22)*(na1 - am1 + x51) - sin(x21)*sin(x22)*(na2 - am2 + x52),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,          -sin(x22),                                cos(x22)*sin(x21),                               -cos(x21)*cos(x22),
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0,
-           0, 0, 0,                                                                                                                                       0,                                                                                                                                 0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                  0,                                                0,                                                0; 
+	At <<  0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                   wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
+ 0, 0, 0,                              (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/(cos(x21)*cos(x21)),                            -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
+ 0, 0, 0,                  -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/(cos(x21)*cos(x21)),                                        (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
+ 0, 0, 0, sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(na1 - am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
+ 0, 0, 0, cos(x23)*sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na1 - am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) + cos(x21)*sin(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
+ 0, 0, 0,                            cos(x21)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53) + sin(x21)*sin(x22)*(na1 - am1 + x51),               cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x21)*cos(x22)*(na1 - am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),   sin(x21),                               -cos(x21)*cos(x22),
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+ 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
 /********************************************At********************************************************/
 /********************************************Ut********************************************************/
 MatrixXd Ut(15,12);
-	Ut <<                   0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
-           -cos(x22)*cos(x23), - cos(x21)*sin(x23) - cos(x23)*sin(x21)*sin(x22),   cos(x21)*cos(x23)*sin(x22) - sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-            cos(x22)*sin(x23),   sin(x21)*sin(x22)*sin(x23) - cos(x21)*cos(x23), - cos(x23)*sin(x21) - cos(x21)*sin(x22)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                    -sin(x22),                                cos(x22)*sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
-                            0,                                                0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
-                            0,                                                0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
+	Ut <<                                                                   0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
+ - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
+                                                0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
+                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
 /********************************************Ut********************************************************/
 	//Ft=I+dt*At
 	MatrixXd Ft(15,15);
@@ -209,11 +210,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     iTc = Tcam;
     wRi = wRc * cRi;
     iRw = wRi.inverse();
-    wTi = -1 * wRc * cRw *iTc + wRc * cTw;                                       
+    wTi = -1 * wRc * cRi *iTc + wRc * cTw;                                       
     MatrixXd ZR(3,3);
     ZR = wRi; 
     cout << "wRc" << endl << wRc <<endl; 
-    cout << "cRw" << endl << cRw <<endl;
+    cout << "cRi" << endl << cRi <<endl;
     cout << "iTc" << endl << iTc <<endl;
     //cout << "|ZR|" << endl << ZR.determinant() <<endl;   
     /*cout << "Angles" << endl << ZR.eulerAngles(1,0,2) <<endl;  */ 
@@ -224,14 +225,14 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Zt(1) = wTi(1);
     Zt(2) = wTi(2);  
  
-    double roll = asin(ZR(1,2));
-    double pitch = atan(-ZR(0,2)/ZR(2,2));
-    double yaw = atan(-ZR(1,0)/ZR(1,1));
+    double roll = atan(-ZR(1,1)/ZR(0,1));
+    double pitch = asin(ZR(2,1));
+    double yaw = atan(-ZR(2,2)/ZR(2,0));
 
     Zt(3) = roll;
     Zt(4) = pitch;
     Zt(5) = yaw;
-    cout <<"Zt"<<endl<<Zt<<endl; //Zt is ok. I have see it in rviz.
+    cout <<"Zt"<<endl<<Zt<<endl; 
     
 /********************************************Zt********************************************************/
 
@@ -252,8 +253,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     MatrixXd Kt(15,6);
     MatrixXd MidMatrix(6,6);
     MidMatrix = Ct * Sigma_t * Ct.transpose() + Wt * Rt * Wt.transpose();
-	Kt = Sigma_t * Ct.transpose() *(MidMatrix.inverse());
-	//ut=u_t + 
+	Kt = Sigma_t * Ct.transpose() *(MidMatrix.inverse()); 
 	ut = u_t + Kt * (Zt - g);
 	Sigmat = Sigma_t - Kt * Ct * Sigma_t;
         cout <<"ut"<<endl<<ut<<endl; 
@@ -261,10 +261,9 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
  
     
-
-    AngleAxisd rollAngle(Zt(3), Vector3d::UnitX());
-    AngleAxisd pitchAngle(Zt(4), Vector3d::UnitY());
-    AngleAxisd yawAngle(Zt(5), Vector3d::UnitZ());
+    AngleAxisd rollAngle(ut(3), Vector3d::UnitX());
+    AngleAxisd pitchAngle(ut(4), Vector3d::UnitY());
+    AngleAxisd yawAngle(ut(5), Vector3d::UnitZ());
   
 
     Quaternion<double> Q_ekfwork = yawAngle * rollAngle * pitchAngle;
@@ -272,14 +271,32 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     nav_msgs::Odometry odom_ekfwork;
     odom_ekfwork.header.stamp = msg->header.stamp;
     odom_ekfwork.header.frame_id = "world";
-    odom_ekfwork.pose.pose.position.x = Zt(0);
-    odom_ekfwork.pose.pose.position.y = Zt(1);
-    odom_ekfwork.pose.pose.position.z = Zt(2);
+    odom_ekfwork.pose.pose.position.x = ut(0);
+    odom_ekfwork.pose.pose.position.y = ut(1);
+    odom_ekfwork.pose.pose.position.z = ut(2);
     odom_ekfwork.pose.pose.orientation.w = Q_ekfwork.w();
     odom_ekfwork.pose.pose.orientation.x = Q_ekfwork.x();
     odom_ekfwork.pose.pose.orientation.y = Q_ekfwork.y();
     odom_ekfwork.pose.pose.orientation.z = Q_ekfwork.z();
-    odom_pub.publish(odom_ekfwork);  
+    odom_pub.publish(odom_ekfwork);
+
+
+    
+    AngleAxisd rollAng(Zt(3), Vector3d::UnitX());
+    AngleAxisd pitchAng(Zt(4), Vector3d::UnitY());
+    AngleAxisd yawAng(Zt(5), Vector3d::UnitZ());
+    Quaternion<double> Q_ekf_obs = yawAng * rollAng * pitchAng;
+    nav_msgs::Odometry odom_ekf_obs;
+    odom_ekf_obs.header.stamp = msg->header.stamp;
+    odom_ekf_obs.header.frame_id = "world";
+    odom_ekf_obs.pose.pose.position.x = Zt(0);
+    odom_ekf_obs.pose.pose.position.y = Zt(1);
+    odom_ekf_obs.pose.pose.position.z = Zt(2);
+    odom_ekf_obs.pose.pose.orientation.w = Q_ekf_obs.w();
+    odom_ekf_obs.pose.pose.orientation.x = Q_ekf_obs.x();
+    odom_ekf_obs.pose.pose.orientation.y = Q_ekf_obs.y();
+    odom_ekf_obs.pose.pose.orientation.z = Q_ekfwork.z();
+    pub_odom_ekf_obs.publish(odom_ekf_obs);  
 }
 
 int main(int argc, char **argv)
@@ -289,7 +306,7 @@ int main(int argc, char **argv)
     ros::Subscriber s1 = n.subscribe("imu", 1000, imu_callback);
     ros::Subscriber s2 = n.subscribe("tag_odom", 1000, odom_callback);
     odom_pub = n.advertise<nav_msgs::Odometry>("ekf_odom", 100);
-    //pub_odom_ekfwork = n.advertise<nav_msgs::Odometry>("odom_ekfwork",10);
+    pub_odom_ekf_obs = n.advertise<nav_msgs::Odometry>("odom_ekf_obs",10);
     Rcam = Quaterniond(0, 0, -1, 0).toRotationMatrix();
     cout << "R_cam" << endl << Rcam << endl;
     // Q imu covariance matrix; Rt visual odomtry covariance matrix
