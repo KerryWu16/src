@@ -213,9 +213,10 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
 	/*                     Transformation from Eigen                       */
 	geometry_msgs::Quaternion q_cw = msg->pose.pose.orientation;
+	Vector3d T_cw;
 	// camera to tag world
 	Matrix3d R_cw = Quaterniond(q_cw.w, q_cw.x, q_cw.y, q_cw.z).toRotationMatrix();
-	Vector3d T_cw << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
+	T_cw << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
 
 	// IMU to camera frame
 	Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
