@@ -41,8 +41,7 @@ VectorXd mean_ns(15);
 MatrixXd cov_ps = MatrixXd::Identity(15, 15);
 MatrixXd cov_ba = MatrixXd::Identity(15, 15);
 MatrixXd cov_ns = MatrixXd::Identity(15, 15);
-/*
-		*/
+/* Observation Model	*/
 VectorXd g_ut(6);
 
 // Initially use a constant, later need to read from the environment
@@ -213,17 +212,10 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	cout << camera_pose_wi_geo.rotation.z << endl;
 
 	/*                     Transformation from Eigen                       */
-	Vector3d T_cw;
-	Quaterniond R_cw_quat;
+	geometry_msgs::Quaternion q_cw = msg->pose.pose.orientation;
 	// camera to tag world
-	R_cw_quat.w() = msg->pose.pose.orientation.w;
-	R_cw_quat.x() = msg->pose.pose.orientation.x;
-	R_cw_quat.y() = msg->pose.pose.orientation.y;
-	R_cw_quat.z() = msg->pose.pose.orientation.z;
-	T_cw[0] = msg->pose.pose.position.x;
-	T_cw[1] = msg->pose.pose.position.y;
-	T_cw[2] = msg->pose.pose.position.z;
-	Matrix3d R_cw = R_cw_quat.toRotationMatrix();
+	Matrix3d R_cw = Quaterniond(q_cw.w, q_cw.x, q_cw.y, q_cw.z).toRotationMatrix();
+	Vector3d T_cw << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
 
 	// IMU to camera frame
 	Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
@@ -235,7 +227,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
 	// tag world to IMU
 	Matrix3d R_wi = R_iw.inverse();
-	Vector3d T_wi = -R_iw.inverse()*T_iw;
+	Vector3d T_wi = -R_wi*T_iw;
 	Quaterniond R_wi_q(R_wi);
 
 	cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
@@ -258,17 +250,17 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		R_wi_quat.y() = camera_pose_wi_geo.rotation.y;
 		R_wi_quat.z() = camera_pose_wi_geo.rotation.z;
 		Matrix3d R_wi_2 = R_wi_quat.toRotationMatrix();
-		zt(3) = asin(R_wi_2(1, 2));
-		zt(4) = atan2(-R_wi_2(0, 1), R_wi_2(1, 1)); // pitch_wi
+		zt(3) = atan2(-R_wi_2(0, 1), R_wi_2(1, 1)); // pitch_wi
+		zt(4) = asin(R_wi_2(1, 2));
 		zt(5) = atan2(-R_wi_2(2, 0), R_wi_2(2, 2)); // yaw_wi
-		}
+	}
 	else {
 		// Use the result from Eigen in rviz
 		zt(0) = T_wi(0);
 		zt(1) = T_wi(1);
 		zt(2) = T_wi(2);
-		zt(3) = asin(R_wi(1, 2));
-		zt(4) = atan2(-R_wi(0, 1), R_wi(1, 1)); // pitch_wi
+		zt(3) = atan2(-R_wi(0, 1), R_wi(1, 1)); // roll
+		zt(4) = asin(R_wi(1, 2)); // pitch
 		zt(5) = atan2(-R_wi(2, 0), R_wi(2, 2)); // yaw_wi
 	}
 
@@ -299,11 +291,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
     /*     Update, with C and W matrix										  */
     /*     Linear for this case, but still use  Extended Kalman Filter        */
-    MatrixXd Kt = MatrixXd::Identity(15, 15); // Kalman
+    MatrixXd Kt = MatrixXd::Identity(15, 6); // Kalman
     MatrixXd Ct = MatrixXd::Identity(6, 15);
-    MatrixXd Wt = MatrixXd::Identity(6, 6);
+    // MatrixXd Wt = MatrixXd::Identity(6, 6);
 
-    Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose() + Wt * Rt * Wt.transpose()).inverse());
+    Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose() + Rt).inverse());
     mean_ns = mean_ba + Kt * (zt - g_ut);
     cov_ns  = cov_ba  + Kt * Ct * cov_ba;
     mean_ps = mean_ns;
