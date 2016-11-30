@@ -12,7 +12,7 @@
 #include <math.h>
 
 #define DEBUG_ODOM true
-#define DEBUG_IMU true
+#define DEBUG_IMU false
 #define DEBUG_TF false
 
 using namespace std;
@@ -205,16 +205,6 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	geometry_msgs::Transform camera_pose_wi_geo;
 	tf::transformTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
-	cout << "camera_pose_wi_geo transformation from TF is: " << endl;
-	cout << camera_pose_wi_geo.translation.x << endl;
-	cout << camera_pose_wi_geo.translation.y << endl;
-	cout << camera_pose_wi_geo.translation.z << endl;
-	cout << "quaternion from TF is: " << endl;
-	cout << camera_pose_wi_geo.rotation.w << endl;
-	cout << camera_pose_wi_geo.rotation.x << endl;
-	cout << camera_pose_wi_geo.rotation.y << endl;
-	cout << camera_pose_wi_geo.rotation.z << endl;
-
 	/*                     Transformation from Eigen                       */
 	geometry_msgs::Quaternion q_cw = msg->pose.pose.orientation;
 	// camera to tag world
@@ -250,16 +240,27 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	R_wi = H_wi.topLeftCorner(3, 3);
 	T_wi = H_wi.topRightCorner(3, 1);
 	Quaterniond R_wi_q(R_wi);
-
-	cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
-	cout << T_wi(0) << endl;
-	cout << T_wi(1) << endl;
-	cout << T_wi(2) << endl;
-	cout << "quaternion from Eigen is: " << endl;
-	cout << R_wi_q.w() << endl;
-	cout << R_wi_q.x() << endl;
-	cout << R_wi_q.y() << endl;
-	cout << R_wi_q.z() << endl;
+	
+	#if DEBUG_TF
+		cout << "camera_pose_wi_geo transformation from TF is: " << endl;
+		cout << camera_pose_wi_geo.translation.x << endl;
+		cout << camera_pose_wi_geo.translation.y << endl;
+		cout << camera_pose_wi_geo.translation.z << endl;
+		cout << "quaternion from TF is: " << endl;
+		cout << camera_pose_wi_geo.rotation.w << endl;
+		cout << camera_pose_wi_geo.rotation.x << endl;
+		cout << camera_pose_wi_geo.rotation.y << endl;
+		cout << camera_pose_wi_geo.rotation.z << endl;
+		cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
+		cout << T_wi(0) << endl;
+		cout << T_wi(1) << endl;
+		cout << T_wi(2) << endl;
+		cout << "quaternion from Eigen is: " << endl;
+		cout << R_wi_q.w() << endl;
+		cout << R_wi_q.x() << endl;
+		cout << R_wi_q.y() << endl;
+		cout << R_wi_q.z() << endl;
+	#endif
 	if (DEBUG_TF) {
 		zt(0) = camera_pose_wi_geo.translation.x;
 		zt(1) = camera_pose_wi_geo.translation.y;
@@ -277,8 +278,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
 		// zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
 		zt(3) = asin(R_wi_tf(1, 2)); // roll
-		zt(4) = atan2(-R_wi_tf(2, 0), R_wi_tf(2, 2)); // pitch
-		zt(5) = atan2(-R_wi_tf(0, 1), R_wi_tf(1, 1)); // yaw
+		zt(4) = atan2(-R_wi_tf(2, 0) / cos(zt(3)), R_wi_tf(2, 2) / cos(zt(3)) ); // pitch
+		zt(5) = atan2(-R_wi_tf(0, 1) / cos(zt(3)), R_wi_tf(1, 1) / cos(zt(3)) ); // yaw
 	}
 	else {
 		// Use the result from Eigen in rviz
@@ -309,22 +310,25 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	double phi = zt(3);
 	double the = zt(4);
 	double psi = zt(5);
-	if (phi_ppg - phi >  M_PI) zt(3) += 2 * M_PI;
-	if (phi_ppg - phi < -M_PI) zt(3) -= 2 * M_PI;
-	if (the_ppg - the >  M_PI) zt(4) += 2 * M_PI;
-	if (the_ppg - the < -M_PI) zt(4) -= 2 * M_PI;
-	if (psi_ppg - psi >  M_PI) zt(5) += 2 * M_PI;
-	if (psi_ppg - psi < -M_PI) zt(5) -= 2 * M_PI;
+	// if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
+	// if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
+	// if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
+	// if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
+	// if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
+	// if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
 
     #if DEBUG_ODOM
-        cout<<" The x of camera: " << zt(0) <<endl;
-        cout<<" The y of camera: " << zt(1) <<endl;
-        cout<<" The z of camera: " << zt(2) <<endl;
-        cout<<" The roll of camera in ZXY Euler angle: " << zt(3) <<endl;
-        cout<<" The pitch of camera in ZXY Euler angle: " << zt(4) <<endl;
-        cout<<" The yaw of camera in ZXY Euler angle: " << zt(5) <<endl;
-        cout<<" The pose of camera is in the coordinate frame: " <<  msg->header.frame_id <<endl;
-        cout<<" The twist of camera is in the child frame: " <<  msg->child_frame_id <<endl;
+        // cout<<" The x of camera: " << zt(0) <<endl;
+        // cout<<" The y of camera: " << zt(1) <<endl;
+        // cout<<" The z of camera: " << zt(2) <<endl;
+        // cout<<" The roll of camera in ZXY Euler angle : " << phi <<endl;
+        // cout<<" The pitch of camera in ZXY Euler angle: " << the <<endl;
+        // cout<<" The yaw of camera in ZXY Euler angle  : " << psi <<endl;
+		cout<<" zt(3) : " << zt(3) <<endl;
+        cout<<" zt(4) : " << zt(4) <<endl;
+        cout<<" zt(5) : " << zt(5) <<endl;
+        // cout<<" The pose of camera is in the coordinate frame: " <<  msg->header.frame_id <<endl;
+        // cout<<" The twist of camera is in the child frame: " <<  msg->child_frame_id <<endl;
     #endif
 
     /*     Update, with C and W matrix										  */
@@ -366,10 +370,10 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     odom_pub.publish(ekf_odom);
 
 	#if DEBUG_ODOM
-		cout<<" The Kalman gain is:" << endl << Kt << endl;
-		cout<<" The mean_ns is:" << endl << mean_ns << endl;
-		cout<<" The cov_ns is:" << endl << cov_ns << endl;
-		cout<<" The g_ut is:" << endl << g_ut << endl;
+		// cout<<" The Kalman gain is:" << endl << Kt << endl;
+		// cout<<" The mean_ns is:" << endl << mean_ns << endl;
+		// cout<<" The cov_ns is:" << endl << cov_ns << endl;
+		// cout<<" The g_ut is:" << endl << g_ut << endl;
 		cout<<" The odometry before EKF:" << endl;
         ROS_INFO("Seq: [%d]", msg->header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.translation.x,camera_pose_wi_geo.translation.y, camera_pose_wi_geo.translation.z);
@@ -380,7 +384,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
 		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
     #endif
-	cout<<" The end of Odometry callback" << endl << endl;
+	// cout<<" The end of Odometry callback" << endl << endl;
 }
 
 int main(int argc, char **argv)
