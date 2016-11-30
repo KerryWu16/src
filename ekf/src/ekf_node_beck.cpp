@@ -118,52 +118,52 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 		x31,
 		x32,
 		x33,
-		wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
-		-(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
-		-(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
-		(cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52),
-		(cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52),
-		sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) - g,
-		nbg1,
-		nbg2,
-		nbg3,
-		nba1,
-		nba2,
-		nba3;
+		wm1*cos(x22) - x41*cos(x22) + wm3*sin(x22) - x43*sin(x22),
+		-(- wm2*cos(x21) + x42*cos(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
+		-(- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
+		(cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am1 + x51) - cos(x21)*sin(x23)*(- am2 + x52),
+		(cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am3 + x53) - cos(x21)*cos(x23)*(- am2 + x52),
+		sin(x21)*(- am2 + x52) - cos(x21)*cos(x22)*(- am3 + x53) - cos(x21)*sin(x22)*(- am1 + x51) - g,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0;
 
 	At <<
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                   wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
-		0, 0, 0,                              (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/pow(cos(x21), 2),                      -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
-		0, 0, 0,                  -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/pow(cos(x21), 2),                                  (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
-		0, 0, 0, sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(na1 - am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
-		0, 0, 0, cos(x23)*sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na1 - am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) + cos(x21)*sin(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
-		0, 0, 0,                            cos(x21)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53) + sin(x21)*sin(x22)*(na1 - am1 + x51),                                                                 cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x21)*cos(x22)*(na1 - am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
+		0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0,                                                   wm3*cos(x22) - x43*cos(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
+		0, 0, 0,                              (- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21) * cos(x21),                      -(sin(x21)*(- wm1*cos(x22) + x41*cos(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0,                  -(sin(x21)*(- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22)))/cos(x21) * cos(x21),                                  (- wm1*cos(x22) + x41*cos(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0, sin(x21)*sin(x23)*(- am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(- am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(- am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am3 + x53) - cos(x21)*cos(x23)*(- am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
+		0, 0, 0, cos(x23)*sin(x21)*(- am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(- am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(- am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am3 + x53) + cos(x21)*sin(x23)*(- am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
+		0, 0, 0,                            cos(x21)*(- am2 + x52) + cos(x22)*sin(x21)*(- am3 + x53) + sin(x21)*sin(x22)*(- am1 + x51),                                                                 cos(x21)*sin(x22)*(- am3 + x53) - cos(x21)*cos(x22)*(- am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
 	Ut <<
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
-	 - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
+	 - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+	   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+	                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
+        0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
 
 	Ft = MatrixXd::Identity(15, 15) + dt * At;
     Vt = dt * Ut;
@@ -240,7 +240,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	R_wi = H_wi.topLeftCorner(3, 3);
 	T_wi = H_wi.topRightCorner(3, 1);
 	Quaterniond R_wi_q(R_wi);
-	
+
 	#if DEBUG_TF
 		cout << "camera_pose_wi_geo transformation from TF is: " << endl;
 		cout << camera_pose_wi_geo.translation.x << endl;
@@ -362,7 +362,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ekf_odom.pose.pose.orientation.x = Q_output.x();
 		ekf_odom.pose.pose.orientation.y = Q_output.y();
 		ekf_odom.pose.pose.orientation.z = Q_output.z();
-	} 
+	}
 	else {
 		ekf_odom = *msg;
 	}
