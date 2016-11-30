@@ -11,8 +11,8 @@
 #include <tf/transform_datatypes.h>
 #include <math.h>
 
-#define DEBUG_ODOM false
-#define DEBUG_IMU false
+#define DEBUG_ODOM true
+#define DEBUG_IMU true
 #define DEBUG_TF false
 
 using namespace std;
@@ -35,17 +35,19 @@ ros::Time last_time;
 	[x3] x(6)  x(7)  x(8) = linear velocity, x y z
 	[x4] x(9)  x(10) x(11)= gyroscope bias
 	[x5] x(12) x(13) x(14)= accelerator bias   							*/
-VectorXd mean_ps(15);
-VectorXd mean_ba(15);
-VectorXd mean_ns(15);
-MatrixXd cov_ps = MatrixXd::Identity(15, 15);
-MatrixXd cov_ba = MatrixXd::Identity(15, 15);
-MatrixXd cov_ns = MatrixXd::Identity(15, 15);
+VectorXd mean_ps= MatrixXd::Zero(15, 1 );
+VectorXd mean_ba= MatrixXd::Zero(15, 1 );
+VectorXd mean_ns= MatrixXd::Zero(15, 1 );
+MatrixXd cov_ps = MatrixXd::Zero(15, 15);
+MatrixXd cov_ba = MatrixXd::Zero(15, 15);
+MatrixXd cov_ns = MatrixXd::Zero(15, 15);
 /* Observation Model	*/
 VectorXd g_ut(6);
 
 // Initially use a constant, later need to read from the environment
 float g = 9.81;
+bool IMU_UPDATED = false;
+bool CAMERA_UPDATED = false;
 
 /*  Process model, since IMU is an internal measurement
     the gyro bias and accelerator bias is part to the state
@@ -61,6 +63,7 @@ float g = 9.81;
 */
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
+	IMU_UPDATED = true;
 	#if DEBUG_IMU
 		// cout << "Before process, the mean_ps is: " << endl << mean_ps << endl;
 		// cout << "The cov_ps is: " << endl << cov_ps << endl;
@@ -85,7 +88,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 		return;
 	}
 
-	double x11= mean_ps(0), x12= mean_ps(1), x13= mean_ps(2);
+	// double x11= mean_ps(0), x12= mean_ps(1), x13= mean_ps(2);
 	double x21= mean_ps(3), x22= mean_ps(4), x23= mean_ps(5);
 	double x31= mean_ps(6), x32= mean_ps(7), x33= mean_ps(8);
 	double x41= mean_ps(9), x42= mean_ps(10),x43= mean_ps(11);
@@ -97,7 +100,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 	double wm1= msg->angular_velocity.x;
 	double wm2= msg->angular_velocity.y;
 	double wm3= msg->angular_velocity.z;
-	g_ut << am1, am2, am3, wm1, wm2, wm3;
+	// g_ut << am1, am2, am3, wm1, wm2, wm3;
 	// noise n: linear_acceleration_covariance, angular_velocity_covariance,
 	//          acc bias noise, gyro bias noise
 	double na1= Q(0, 0) , na2= Q(1, 1), na3= Q(2, 2);
@@ -177,6 +180,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 
 void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
+	CAMERA_UPDATED = true;
     //your code for update
     //camera position in the IMU frame = (0, -0.04, -0.02)
     //camera orientaion in the IMU frame = Quaternion(0, 0, 1, 0); w x y z, respectively
@@ -250,19 +254,29 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		R_wi_quat.x() = camera_pose_wi_geo.rotation.x;
 		R_wi_quat.y() = camera_pose_wi_geo.rotation.y;
 		R_wi_quat.z() = camera_pose_wi_geo.rotation.z;
-		Matrix3d R_wi_2 = R_wi_quat.toRotationMatrix();
-		zt(3) = atan2(-R_wi_2(0, 1), R_wi_2(1, 1)); // pitch_wi
-		zt(4) = asin(R_wi_2(1, 2));
-		zt(5) = atan2(-R_wi_2(2, 0), R_wi_2(2, 2)); // yaw_wi
+		Matrix3d R_wi_tf = R_wi_quat.toRotationMatrix();
+		JacobiSVD<MatrixXd> svd_tf(R_wi_tf, ComputeFullU | ComputeFullV);
+		Matrix3d R_wi_tf_norm = svd_tf.matrixU() * svd_tf.matrixV().transpose();
+		zt(3) = asin(R_wi_tf_norm(1, 2)); // roll
+		zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
+		zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
 	}
 	else {
 		// Use the result from Eigen in rviz
 		zt(0) = T_wi(0);
 		zt(1) = T_wi(1);
 		zt(2) = T_wi(2);
-		zt(3) = atan2(-R_wi(0, 1), R_wi(1, 1)); // roll
-		zt(4) = asin(R_wi(1, 2)); // pitch
-		zt(5) = atan2(-R_wi(2, 0), R_wi(2, 2)); // yaw_wi
+		JacobiSVD<MatrixXd> svd(R_wi, ComputeFullU | ComputeFullV);
+		Matrix3d R_wi_norm = svd.matrixU() * svd.matrixV().transpose();
+		zt(3) = asin(R_wi_norm(1, 2)); // roll
+		zt(4) = atan2(-R_wi_norm(2, 0), R_wi_norm(2, 2)); // pitch
+		zt(5) = atan2(-R_wi_norm(0, 1), R_wi_norm(1, 1)); // yaw
+	}
+
+	if (msg->header.seq == 0) { // first time callback, initialize all messages
+		mean_ps << zt, MatrixXd::Zero(9, 1);
+		mean_ba << zt, MatrixXd::Zero(9, 1);
+		mean_ns << zt, MatrixXd::Zero(9, 1);
 	}
 
 	// Check if the angle passes the singularity point for ZXY Euler angle
@@ -297,6 +311,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     // MatrixXd Wt = MatrixXd::Identity(6, 6);
 
     Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose() + Rt).inverse());
+	g_ut << mean_ba(0), mean_ba(1), mean_ba(2), mean_ba(3), mean_ba(4), mean_ba(5);
     mean_ns = mean_ba + Kt * (zt - g_ut);
     cov_ns  = cov_ba  + Kt * Ct * cov_ba;
     mean_ps = mean_ns;
@@ -309,16 +324,21 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
 
     nav_msgs::Odometry ekf_odom;
-	ekf_odom.header.seq = msg->header.seq;
-    ekf_odom.header.stamp = msg->header.stamp;
-    ekf_odom.header.frame_id = "world";
-    ekf_odom.pose.pose.position.x = mean_ns(0);
-    ekf_odom.pose.pose.position.y = mean_ns(1);
-    ekf_odom.pose.pose.position.z = mean_ns(2);
-    ekf_odom.pose.pose.orientation.w = Q_output.w();
-    ekf_odom.pose.pose.orientation.x = Q_output.x();
-    ekf_odom.pose.pose.orientation.y = Q_output.y();
-    ekf_odom.pose.pose.orientation.z = Q_output.z();
+	if	(IMU_UPDATED) {
+		ekf_odom.header.seq = msg->header.seq;
+		ekf_odom.header.stamp = msg->header.stamp;
+		ekf_odom.header.frame_id = "world";
+		ekf_odom.pose.pose.position.x = mean_ns(0);
+		ekf_odom.pose.pose.position.y = mean_ns(1);
+		ekf_odom.pose.pose.position.z = mean_ns(2);
+		ekf_odom.pose.pose.orientation.w = Q_output.w();
+		ekf_odom.pose.pose.orientation.x = Q_output.x();
+		ekf_odom.pose.pose.orientation.y = Q_output.y();
+		ekf_odom.pose.pose.orientation.z = Q_output.z();
+	} 
+	else {
+		ekf_odom = *msg;
+	}
 
     odom_pub.publish(ekf_odom);
 
@@ -326,10 +346,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		cout<<" The Kalman gain is:" << endl << Kt << endl;
 		cout<<" The mean_ns is:" << endl << mean_ns << endl;
 		cout<<" The cov_ns is:" << endl << cov_ns << endl;
+		cout<<" The g_ut is:" << endl << g_ut << endl;
 		cout<<" The odometry before EKF:" << endl;
         ROS_INFO("Seq: [%d]", msg->header.seq);
-		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.position.x,camera_pose_wi_geo.position.y, camera_pose_wi_geo.position.z);
-		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", camera_pose_wi_geo.orientation.x, camera_pose_wi_geo.orientation.y, camera_pose_wi_geo.orientation.z, camera_pose_wi_geo.orientation.w);
+		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.translation.x,camera_pose_wi_geo.translation.y, camera_pose_wi_geo.translation.z);
+		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", camera_pose_wi_geo.rotation.x, camera_pose_wi_geo.rotation.y, camera_pose_wi_geo.rotation.z, camera_pose_wi_geo.rotation.w);
 		cout<<" The odometry after EKF:" << endl;
         ROS_INFO("Seq: [%d]", ekf_odom.header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", ekf_odom.pose.pose.position.x,ekf_odom.pose.pose.position.y, ekf_odom.pose.pose.position.z);

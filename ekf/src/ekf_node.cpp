@@ -11,26 +11,43 @@
 #include <tf/transform_datatypes.h>
 #include <math.h>
 
-#define DEBUG true
+#define DEBUG_ODOM true
+#define DEBUG_IMU true
+#define DEBUG_TF false
 
 using namespace std;
 using namespace Eigen;
 ros::Publisher odom_pub;
-ros::Publisher pub_odom_ekf_obs;
 MatrixXd Q = MatrixXd::Identity(12, 12); // For propogate, IMU noise
-MatrixXd Rt = MatrixXd::Identity(6,6);   // For update, Odometry noise
-MatrixXd ut = MatrixXd::Identity(15, 1);
-MatrixXd u_t(15,1);
-MatrixXd Sigmat = MatrixXd::Identity(15, 15);
-MatrixXd Sigma_t(15,15);
-bool img_checktemp;
-double dt;
-double time_old;
+MatrixXd Rt = MatrixXd::Identity(6, 6);   // For update, Odometry noise
 
 
+// ros::Time current_time, last_time;
+ros::Time current_time;
+ros::Time last_time;
+
+/*  Mean and covariance matrixs
+    ps: present state
+    ba: state propogated
+    ns: next state
+	[x1] x(0)  x(1)  x(2) = position, x y z
+	[x2] x(3)  x(4)  x(5) = orientation, roll pitch yaw, ZXY Euler
+	[x3] x(6)  x(7)  x(8) = linear velocity, x y z
+	[x4] x(9)  x(10) x(11)= gyroscope bias
+	[x5] x(12) x(13) x(14)= accelerator bias   							*/
+VectorXd mean_ps= MatrixXd::Zero(15, 1 );
+VectorXd mean_ba= MatrixXd::Zero(15, 1 );
+VectorXd mean_ns= MatrixXd::Zero(15, 1 );
+MatrixXd cov_ps = MatrixXd::Zero(15, 15);
+MatrixXd cov_ba = MatrixXd::Zero(15, 15);
+MatrixXd cov_ns = MatrixXd::Zero(15, 15);
+/* Observation Model	*/
+VectorXd g_ut(6);
 
 // Initially use a constant, later need to read from the environment
-
+float g = 9.81;
+bool IMU_UPDATED = false;
+bool CAMERA_UPDATED = false;
 
 /*  Process model, since IMU is an internal measurement
     the gyro bias and accelerator bias is part to the state
@@ -43,272 +60,315 @@ double time_old;
     4. The best way to handle timestamp difference is to store the propogated
        and origin data, and trace back to the most recent propogated value
        and repropogate after the odometry reading comes
-cd ../src && cp ekf_node_chongzi.cpp ekf_node.cpp && cd ../../../ && catkin_make && cd src/ekf/launch && roslaunch 25000709.launch  
-
 */
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
+	IMU_UPDATED = true;
+	#if DEBUG_IMU
+		// cout << "Before process, the mean_ps is: " << endl << mean_ps << endl;
+		// cout << "The cov_ps is: " << endl << cov_ps << endl;
+    	ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+    	ROS_INFO("Imu linear acceleration x: [%f], y: [%f], z: [%f]", \
+		msg->linear_acceleration.x,msg->linear_acceleration.y,msg->linear_acceleration.z);
+    	ROS_INFO("Imu angular velocity x: [%f], y: [%f], z: [%f]", \
+    	msg->angular_velocity.x,msg->angular_velocity.y,msg->angular_velocity.z);
+	#endif
+    MatrixXd At = MatrixXd::Identity(15, 15);
+    MatrixXd Ut = MatrixXd::Identity(15, 12);
+    MatrixXd Ft = MatrixXd::Identity(15, 15);
+    MatrixXd Vt = MatrixXd::Identity(15, 12);
+    last_time = current_time;
+	float dt = 0.0;
+	if	(current_time < msg->header.stamp) { // Check for its first time
+		current_time = msg->header.stamp;
+    	dt = current_time.toSec() - last_time.toSec();
+	}  else  {
+		current_time = msg->header.stamp;
+		dt = 0.0;
+		return;
+	}
 
-    // noise n: linear_acceleration_covariance, angular_velocity_covariance,
-    //          acc bias noise, gyro bias noise
-    //          assume the covariance is diagonalized and x, y, z are independent
-    //          Given by the TA
-    MatrixXd Sigmat_1(15,15);
-	Sigmat_1 = Sigmat;
-	MatrixXd ut_1(15,1);
-	ut_1 = ut;
+	// double x11= mean_ps(0), x12= mean_ps(1), x13= mean_ps(2);
+	double x21= mean_ps(3), x22= mean_ps(4), x23= mean_ps(5);
+	double x31= mean_ps(6), x32= mean_ps(7), x33= mean_ps(8);
+	double x41= mean_ps(9), x42= mean_ps(10),x43= mean_ps(11);
+	double x51= mean_ps(12),x52= mean_ps(13),x53= mean_ps(14);
+	// input u : acceleration, augular_velocity
+	double am1= msg->linear_acceleration.x;
+	double am2= msg->linear_acceleration.y;
+	double am3= msg->linear_acceleration.z;
+	double wm1= msg->angular_velocity.x;
+	double wm2= msg->angular_velocity.y;
+	double wm3= msg->angular_velocity.z;
+	// g_ut << am1, am2, am3, wm1, wm2, wm3;
+	// noise n: linear_acceleration_covariance, angular_velocity_covariance,
+	//          acc bias noise, gyro bias noise
+	double na1= Q(0, 0) , na2= Q(1, 1), na3= Q(2, 2);
+	double ng1= Q(3, 3) , ng2= Q(4, 4), ng3= Q(5, 5);
+	double nba1=Q(6, 6) , nba2=Q(7, 7), nba3=Q(8, 8);
+	double nbg1=Q(9, 9) , nbg2=Q(10,10),nbg3=Q(11,11);
 
-	    double x11= ut_1(0), x12= ut_1(1), x13= ut_1(2);
-	    double x21= ut_1(3), x22= ut_1(4), x23= ut_1(5);
-	    double x31= ut_1(6), x32= ut_1(7), x33= ut_1(8);
-	    double x41= ut_1(9), x42= ut_1(10),x43= ut_1(11);
-	    double x51= ut_1(12),x52= ut_1(13),x53= ut_1(14);
-        double am1= msg->linear_acceleration.x;
-        double am2= msg->linear_acceleration.y;
-        double am3= msg->linear_acceleration.z;
-        double wm1= msg->angular_velocity.x;
-        double wm2= msg->angular_velocity.y;
-        double wm3= msg->angular_velocity.z;
-        double na1= Q(0, 0) , na2= Q(1, 1), na3= Q(2, 2);
-        double ng1= Q(3, 3) , ng2= Q(4, 4), ng3= Q(5, 5);
-        double nba1=Q(6, 6) , nba2=Q(7, 7), nba3=Q(8, 8);
-        double nbg1=Q(9, 9) , nbg2=Q(10,10),nbg3=Q(11,11);
-        //cout<< "linear_acceleration.x:" << endl<< am1 <<endl;
-/****************************************get the dt from stemp***************************************/
-if(!img_checktemp)
-{
-  time_old = msg->header.stamp.toSec()-0.03;
-  img_checktemp=1;
+	/**************************************************************************/
+	/* updated to f(mu_t_1, u_t, 0), At(mu_t_1, u_t, 0), and Ut               */
+	/* Generated by matlab ELEC6910P_Project2Phase2.m                         */
+	/**************************************************************************/
+
+	VectorXd F_t_1(15);
+	F_t_1 <<
+		x31,
+		x32,
+		x33,
+		wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
+		-(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
+		-(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
+		(cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52),
+		(cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52),
+		sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) - g,
+		nbg1,
+		nbg2,
+		nbg3,
+		nba1,
+		nba2,
+		nba3;
+
+	At <<
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                   wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
+		0, 0, 0,                              (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/pow(cos(x21), 2),                      -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0,                  -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/pow(cos(x21), 2),                                  (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0, sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(na1 - am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
+		0, 0, 0, cos(x23)*sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na1 - am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) + cos(x21)*sin(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
+		0, 0, 0,                            cos(x21)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53) + sin(x21)*sin(x22)*(na1 - am1 + x51),                                                                 cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x21)*cos(x22)*(na1 - am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
+		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
+
+	Ut <<
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
+	 - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
+	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
+
+	Ft = MatrixXd::Identity(15, 15) + dt * At;
+    Vt = dt * Ut;
+
+    // Calculate the propogagted mean and covariance
+    mean_ba = mean_ps + dt * F_t_1;
+    cov_ba = Ft * cov_ps * Ft.transpose() + Vt * Q * Vt.transpose();
+	#if DEBUG_IMU
+		cout<< "After process, the mean_ba became" << endl << mean_ba << endl;
+		cout<< "The cov_ba became" << endl << cov_ba << endl;
+	#endif
 }
-dt = msg->header.stamp.toSec()-time_old;
-time_old = msg->header.stamp.toSec();
-       //cout <<"dt"<<endl<<dt<<endl;
-/**************************************get the dt from stemp***************************************/
-/********************************************f********************************************************/
-	MatrixXd f(15,1);
-      f<<     
-x31,
-                                                                                                                                                                                                    x32,
-                                                                                                                                                                                                    x33,
-                                                                                                                wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
- -(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
-                                                                                                    -(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
-                          (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52),
-                          (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52),
-                                                                                       sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) - 982/100,
-                                                                                                                                                                                                   nbg1,
-                                                                                                                                                                                                   nbg2,
-                                                                                                                                                                                                   nbg3,
-                                                                                                                                                                                                   nba1,
-                                                                                                                                                                                                   nba2,
-                                                                                                                                                                                                   nba3; 
 
-/********************************************f********************************************************/
-/********************************************At********************************************************/
-MatrixXd At(15,15);
-	At <<  0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                   wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
- 0, 0, 0,                              (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/(cos(x21)*cos(x21)),                            -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
- 0, 0, 0,                  -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/(cos(x21)*cos(x21)),                                        (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
- 0, 0, 0, sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(na1 - am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
- 0, 0, 0, cos(x23)*sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na1 - am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) + cos(x21)*sin(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
- 0, 0, 0,                            cos(x21)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53) + sin(x21)*sin(x22)*(na1 - am1 + x51),               cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x21)*cos(x22)*(na1 - am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),   sin(x21),                               -cos(x21)*cos(x22),
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
- 0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
-/********************************************At********************************************************/
-/********************************************Ut********************************************************/
-MatrixXd Ut(15,12);
-	Ut <<                                                                   0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
- - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
-                                                0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
-                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
-/********************************************Ut********************************************************/
-	//Ft=I+dt*At
-	MatrixXd Ft(15,15);
-	MatrixXd I15 = MatrixXd::Identity(15, 15);
-	Ft = I15 + dt * At;
-	//Vt=dt*Ut
-	MatrixXd Vt(15,12);
-	Vt = dt*Ut;
 
-        // Prediction Step
-        u_t = ut_1 + dt * f;
-	//Sigma_t=Ft*Sigmat_1*Ft' + Vt*Q*Vt'
-        Sigma_t = Ft * Sigmat_1 * Ft.transpose() + Vt * Q * Vt.transpose();
-
-}
-
-//Rotation from the camera frame to the IMU frame
-Eigen::Matrix3d Rcam;
 void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
+	CAMERA_UPDATED = true;
     //your code for update
-    //camera position in the IMU frame = (0, -0.04, -0.02)//from camera to IMU
+    //camera position in the IMU frame = (0, -0.04, -0.02)
     //camera orientaion in the IMU frame = Quaternion(0, 0, 1, 0); w x y z, respectively
     //			   RotationMatrix << -1, 0, 0,
     //							      0, 1, 0,
     //                                0, 0, -1;
 
-    
-/*    Rcam << -1   ,   0   ,   0   ,
-            0    ,   1   ,   0   ,
-            0    ,   0   ,   -1  ;
-*/
-    MatrixXd Tcam(3,1);
-    Tcam << 0    , -0.04 , -0.02 ;//from camera to IMU
-/********************************************Zt********************************************************/
-    geometry_msgs::Pose camera_pose;
-    camera_pose = msg->pose.pose;
-    cout <<"Pose"<<endl<<camera_pose<<endl;
-    geometry_msgs::Quaternion q_wi = camera_pose.orientation;
-    cout <<"Quaternion"<<endl<<q_wi<<endl;
-    MatrixXd CamZt(6,1);//camera position in world frame. What we need is the IMU orientation in world frame.
-    CamZt(0) = camera_pose.position.x;
-    CamZt(1) = camera_pose.position.y;
-    CamZt(2) = camera_pose.position.z;
-    
-    // Quaternino -> rotation matrix -> ZXY Euler
-    // camera orientation in world frame. What we need is the IMU orientation in world frame.
-    /*CamZt(3) = asin(2*(q_wi.y * q_wi.z + q_wi.x * q_wi.w));
-    CamZt(4) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.y,2)) / cos(CamZt(3))); // pitch_wi
-    CamZt(5) = acos((1 - 2 * pow(q_wi.x,2) - 2 * pow(q_wi.z,2))  / cos(CamZt(3))); // yaw_wi
-    */
-    MatrixXd cRw(3,3);//from world to camera
-    Vector3d cTw;     
-    MatrixXd wRc(3,3);
-    //Vector3d wTc;
-    MatrixXd iRw(3,3);
-    //Vector3d iTw;
-    MatrixXd wRi(3,3);
-    Vector3d wTi;
-    MatrixXd iRc(3,3);
-    Vector3d iTc;    //from camera to IMU
-    MatrixXd cRi(3,3);
-    //Vector3d cTi;
-    cRw = Quaterniond(q_wi.x,q_wi.y,q_wi.z,q_wi.w).toRotationMatrix();//CRW from world frame to camera frame.
-    cTw <<     CamZt(0), CamZt(1), CamZt(2) ;
-    wRc = cRw.inverse();
-    iRc = Rcam;
-    cRi = iRc.inverse();
-    iTc = Tcam;
-    wRi = wRc * cRi;
-    iRw = wRi.inverse();
-    wTi = -1 * wRc * cRi *iTc - wRc * cTw;                                       
-    MatrixXd ZR(3,3);
-    ZR = wRi; 
-    cout << "wRc" << endl << wRc <<endl; 
-    cout << "cRi" << endl << cRi <<endl;
-    cout << "iTc" << endl << iTc <<endl;
-    //cout << "|ZR|" << endl << ZR.determinant() <<endl;   
-    /*cout << "Angles" << endl << ZR.eulerAngles(1,0,2) <<endl;  */ 
-    //Vector3d Angle = ZR.eulerAngles(2, 0, 1);
+	VectorXd zt(6); // Camera reading in x,y,z, ZXY Euler
 
-    MatrixXd Zt(6,1);
-    Zt(0) = wTi(0);
-    Zt(1) = wTi(1);
-    Zt(2) = wTi(2);  
- 
-    double roll = atan(-ZR(1,1)/ZR(0,1));
-    double pitch = asin(ZR(2,1));
-    double yaw = atan(-ZR(2,2)/ZR(2,0));
+	/*                     Transformation from TF                           */
+	// Get the world frame in camera frame transformation from the msg
+	tf::Transform camera_pose_cw;
+	tf::poseMsgToTF(msg->pose.pose, camera_pose_cw);
 
-    Zt(3) = roll;
-    Zt(4) = pitch;
-    Zt(5) = yaw;
-    cout <<"Zt"<<endl<<Zt<<endl; 
-    
-/********************************************Zt********************************************************/
+	// Record the camera frame in the IMU frame from TA
+	tf::Transform transform_ic;
+	transform_ic.setOrigin( tf::Vector3(0, -0.04, -0.02) );
+	transform_ic.setRotation( tf::Quaternion(0, 0, -1, 0) );
+	tf::Transform camera_pose_iw = transform_ic * camera_pose_cw;
+	tf::Transform camera_pose_wi = camera_pose_iw.inverse();
 
-   MatrixXd g(6,1);
-	g << u_t(0) , u_t(1), u_t(2), u_t(3), u_t(4), u_t(5);
+	geometry_msgs::Transform camera_pose_wi_geo;
+	tf::transformTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
-   MatrixXd Ct(6,15);
-	Ct <<      1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,
-	           0  ,  1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,
-	           0  ,  0  ,  1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,
-		       0  ,  0  ,  0  ,  1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,
-		       0  ,  0  ,  0  ,  0  ,  1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,
-		       0  ,  0  ,  0  ,  0  ,  0  ,  1  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ;
-    
-	//Wt=
-	MatrixXd Wt = MatrixXd::Identity(6,6);
-	//Kt=Sigma_t * Ct' * (Ct * Sigma_t * Ct' + Wt * R *Wt')
-    MatrixXd Kt(15,6);
-    MatrixXd MidMatrix(6,6);
-    MidMatrix = Ct * Sigma_t * Ct.transpose() + Wt * Rt * Wt.transpose();
-	Kt = Sigma_t * Ct.transpose() *(MidMatrix.inverse()); 
-	ut = u_t + Kt * (Zt - g);
-	Sigmat = Sigma_t - Kt * Ct * Sigma_t;
-        cout <<"ut"<<endl<<ut<<endl; 
-        cout <<"Kt"<<endl<<Kt<<endl;
+	cout << "camera_pose_wi_geo transformation from TF is: " << endl;
+	cout << camera_pose_wi_geo.translation.x << endl;
+	cout << camera_pose_wi_geo.translation.y << endl;
+	cout << camera_pose_wi_geo.translation.z << endl;
+	cout << "quaternion from TF is: " << endl;
+	cout << camera_pose_wi_geo.rotation.w << endl;
+	cout << camera_pose_wi_geo.rotation.x << endl;
+	cout << camera_pose_wi_geo.rotation.y << endl;
+	cout << camera_pose_wi_geo.rotation.z << endl;
 
- 
-    
-    AngleAxisd rollAngle(ut(3), Vector3d::UnitX());
-    AngleAxisd pitchAngle(ut(4), Vector3d::UnitY());
-    AngleAxisd yawAngle(ut(5), Vector3d::UnitZ());
-  
+	/*                     Transformation from Eigen                       */
+	geometry_msgs::Quaternion q_cw = msg->pose.pose.orientation;
+	Vector3d T_cw;
+	// camera to tag world
+	Matrix3d R_cw = Quaterniond(q_cw.w, q_cw.x, q_cw.y, q_cw.z).toRotationMatrix();
+	T_cw << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
 
-    Quaternion<double> Q_ekfwork = yawAngle * rollAngle * pitchAngle;
+	// IMU to camera frame
+	Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
+    Vector3d T_ic = Vector3d(0, -0.04, -0.02);
 
-    nav_msgs::Odometry odom_ekfwork;
-    odom_ekfwork.header.stamp = msg->header.stamp;
-    odom_ekfwork.header.frame_id = "world";
-    odom_ekfwork.pose.pose.position.x = ut(0);
-    odom_ekfwork.pose.pose.position.y = ut(1);
-    odom_ekfwork.pose.pose.position.z = ut(2);
-    odom_ekfwork.pose.pose.orientation.w = Q_ekfwork.w();
-    odom_ekfwork.pose.pose.orientation.x = Q_ekfwork.x();
-    odom_ekfwork.pose.pose.orientation.y = Q_ekfwork.y();
-    odom_ekfwork.pose.pose.orientation.z = Q_ekfwork.z();
-    odom_pub.publish(odom_ekfwork);
+	// IMU to tag world
+	Matrix3d R_iw = R_ic * R_cw;
+	Vector3d T_iw = R_ic * T_cw + T_ic;
 
+	// tag world to IMU
+	Matrix3d R_wi = R_iw.inverse();
+	Vector3d T_wi = -R_wi*T_iw;
+	Quaterniond R_wi_q(R_wi);
 
-    
-    AngleAxisd rollAng(Zt(3), Vector3d::UnitX());
-    AngleAxisd pitchAng(Zt(4), Vector3d::UnitY());
-    AngleAxisd yawAng(Zt(5), Vector3d::UnitZ());
-    Quaternion<double> Q_ekf_obs = yawAng * rollAng * pitchAng;
-    nav_msgs::Odometry odom_ekf_obs;
-    odom_ekf_obs.header.stamp = msg->header.stamp;
-    odom_ekf_obs.header.frame_id = "world";
-    odom_ekf_obs.pose.pose.position.x = Zt(0);
-    odom_ekf_obs.pose.pose.position.y = Zt(1);
-    odom_ekf_obs.pose.pose.position.z = Zt(2);
-    odom_ekf_obs.pose.pose.orientation.w = Q_ekf_obs.w();
-    odom_ekf_obs.pose.pose.orientation.x = Q_ekf_obs.x();
-    odom_ekf_obs.pose.pose.orientation.y = Q_ekf_obs.y();
-    odom_ekf_obs.pose.pose.orientation.z = Q_ekfwork.z();
-    pub_odom_ekf_obs.publish(odom_ekf_obs);  
+	cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
+	cout << T_wi(0) << endl;
+	cout << T_wi(1) << endl;
+	cout << T_wi(2) << endl;
+	cout << "quaternion from Eigen is: " << endl;
+	cout << R_wi_q.w() << endl;
+	cout << R_wi_q.x() << endl;
+	cout << R_wi_q.y() << endl;
+	cout << R_wi_q.z() << endl;
+	if (DEBUG_TF) {
+		zt(0) = camera_pose_wi_geo.translation.x;
+		zt(1) = camera_pose_wi_geo.translation.y;
+		zt(2) = camera_pose_wi_geo.translation.z;
+		// From quaternion to rotation matrix and then ZXY Euler
+		Eigen::Quaterniond R_wi_quat;
+		R_wi_quat.w() = camera_pose_wi_geo.rotation.w;
+		R_wi_quat.x() = camera_pose_wi_geo.rotation.x;
+		R_wi_quat.y() = camera_pose_wi_geo.rotation.y;
+		R_wi_quat.z() = camera_pose_wi_geo.rotation.z;
+		Matrix3d R_wi_tf = R_wi_quat.toRotationMatrix();
+		JacobiSVD<MatrixXd> svd_tf(R_wi_tf, ComputeFullU | ComputeFullV);
+		Matrix3d R_wi_tf_norm = svd_tf.matrixU() * svd_tf.matrixV().transpose();
+		zt(3) = asin(R_wi_tf_norm(1, 2)); // roll
+		zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
+		zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
+	}
+	else {
+		// Use the result from Eigen in rviz
+		zt(0) = T_wi(0);
+		zt(1) = T_wi(1);
+		zt(2) = T_wi(2);
+		JacobiSVD<MatrixXd> svd(R_wi, ComputeFullU | ComputeFullV);
+		Matrix3d R_wi_norm = svd.matrixU() * svd.matrixV().transpose();
+		zt(3) = asin(R_wi_norm(1, 2)); // roll
+		zt(4) = atan2(-R_wi_norm(2, 0), R_wi_norm(2, 2)); // pitch
+		zt(5) = atan2(-R_wi_norm(0, 1), R_wi_norm(1, 1)); // yaw
+	}
+
+	if (msg->header.seq == 0) { // first time callback, initialize all messages
+		mean_ps << zt, MatrixXd::Zero(9, 1);
+		mean_ba << zt, MatrixXd::Zero(9, 1);
+		mean_ns << zt, MatrixXd::Zero(9, 1);
+	}
+
+	// Check if the angle passes the singularity point for ZXY Euler angle
+	double phi_ppg = mean_ba(3);
+	double the_ppg = mean_ba(4);
+	double psi_ppg = mean_ba(5);
+	double phi = zt(3);
+	double the = zt(4);
+	double psi = zt(5);
+	if (phi_ppg - phi >  M_PI) zt(3) += 2 * M_PI;
+	if (phi_ppg - phi < -M_PI) zt(3) -= 2 * M_PI;
+	if (the_ppg - the >  M_PI) zt(4) += 2 * M_PI;
+	if (the_ppg - the < -M_PI) zt(4) -= 2 * M_PI;
+	if (psi_ppg - psi >  M_PI) zt(5) += 2 * M_PI;
+	if (psi_ppg - psi < -M_PI) zt(5) -= 2 * M_PI;
+
+    #if DEBUG_ODOM
+        cout<<" The x of camera: " << zt(0) <<endl;
+        cout<<" The y of camera: " << zt(1) <<endl;
+        cout<<" The z of camera: " << zt(2) <<endl;
+        cout<<" The roll of camera in ZXY Euler angle: " << zt(3) <<endl;
+        cout<<" The pitch of camera in ZXY Euler angle: " << zt(4) <<endl;
+        cout<<" The yaw of camera in ZXY Euler angle: " << zt(5) <<endl;
+        cout<<" The pose of camera is in the coordinate frame: " <<  msg->header.frame_id <<endl;
+        cout<<" The twist of camera is in the child frame: " <<  msg->child_frame_id <<endl;
+    #endif
+
+    /*     Update, with C and W matrix										  */
+    /*     Linear for this case, but still use  Extended Kalman Filter        */
+    MatrixXd Kt = MatrixXd::Identity(15, 6); // Kalman
+    MatrixXd Ct = MatrixXd::Identity(6, 15);
+    // MatrixXd Wt = MatrixXd::Identity(6, 6);
+
+    Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose() + Rt).inverse());
+	g_ut << mean_ba(0), mean_ba(1), mean_ba(2), mean_ba(3), mean_ba(4), mean_ba(5);
+    mean_ns = mean_ba + Kt * (zt - g_ut);
+    cov_ns  = cov_ba  + Kt * Ct * cov_ba;
+    mean_ps = mean_ns;
+    cov_ps  = cov_ns;
+
+    AngleAxisd rollAngle(mean_ns(3), Vector3d::UnitX());
+    AngleAxisd pitchAngle(mean_ns(4), Vector3d::UnitY());
+    AngleAxisd yawAngle(mean_ns(5), Vector3d::UnitZ());
+
+    Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
+
+    nav_msgs::Odometry ekf_odom;
+	if	(IMU_UPDATED) {
+		ekf_odom.header.seq = msg->header.seq;
+		ekf_odom.header.stamp = msg->header.stamp;
+		ekf_odom.header.frame_id = "world";
+		ekf_odom.pose.pose.position.x = mean_ns(0);
+		ekf_odom.pose.pose.position.y = mean_ns(1);
+		ekf_odom.pose.pose.position.z = mean_ns(2);
+		ekf_odom.pose.pose.orientation.w = Q_output.w();
+		ekf_odom.pose.pose.orientation.x = Q_output.x();
+		ekf_odom.pose.pose.orientation.y = Q_output.y();
+		ekf_odom.pose.pose.orientation.z = Q_output.z();
+	} 
+	else {
+		ekf_odom = *msg;
+	}
+
+    odom_pub.publish(ekf_odom);
+
+	#if DEBUG_ODOM
+		cout<<" The Kalman gain is:" << endl << Kt << endl;
+		cout<<" The mean_ns is:" << endl << mean_ns << endl;
+		cout<<" The cov_ns is:" << endl << cov_ns << endl;
+		cout<<" The g_ut is:" << endl << g_ut << endl;
+		cout<<" The odometry before EKF:" << endl;
+        ROS_INFO("Seq: [%d]", msg->header.seq);
+		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.translation.x,camera_pose_wi_geo.translation.y, camera_pose_wi_geo.translation.z);
+		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", camera_pose_wi_geo.rotation.x, camera_pose_wi_geo.rotation.y, camera_pose_wi_geo.rotation.z, camera_pose_wi_geo.rotation.w);
+		cout<<" The odometry after EKF:" << endl;
+        ROS_INFO("Seq: [%d]", ekf_odom.header.seq);
+		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", ekf_odom.pose.pose.position.x,ekf_odom.pose.pose.position.y, ekf_odom.pose.pose.position.z);
+		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
+		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
+    #endif
+	cout<<" The end of Odometry callback" << endl << endl;
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "ekf");
     ros::NodeHandle n("~");
+	ros::Time::init();
+	current_time = ros::Time::now();
     ros::Subscriber s1 = n.subscribe("imu", 1000, imu_callback);
     ros::Subscriber s2 = n.subscribe("tag_odom", 1000, odom_callback);
     odom_pub = n.advertise<nav_msgs::Odometry>("ekf_odom", 100);
-    pub_odom_ekf_obs = n.advertise<nav_msgs::Odometry>("odom_ekf_obs",10);
-    Rcam = Quaterniond(0, 0, -1, 0).toRotationMatrix();
-    cout << "R_cam" << endl << Rcam << endl;
     // Q imu covariance matrix; Rt visual odomtry covariance matrix
     Q.topLeftCorner(6, 6) = 0.01 * Q.topLeftCorner(6, 6);
     Q.bottomRightCorner(6, 6) = 0.01 * Q.bottomRightCorner(6, 6);

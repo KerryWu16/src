@@ -74,6 +74,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
         double nba1=Q(6, 6) , nba2=Q(7, 7), nba3=Q(8, 8);
         double nbg1=Q(9, 9) , nbg2=Q(10,10),nbg3=Q(11,11);
         //cout<< "linear_acceleration.x:" << endl<< am1 <<endl;
+        //MatrixXd utuu = MatrixXd::Identity(6, 15);
+        //cout<< "utuu" << endl<< utuu <<endl;
 /****************************************get the dt from stemp***************************************/
 if(!img_checktemp)
 {
@@ -202,7 +204,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Vector3d iTc;    //from camera to IMU
     MatrixXd cRi(3,3);
     //Vector3d cTi;
-    cRw = Quaterniond(q_wi.x,q_wi.y,q_wi.z,q_wi.w).toRotationMatrix();//CRW from world frame to camera frame.
+    cRw = Quaterniond(q_wi.w,q_wi.x,q_wi.y,q_wi.z).toRotationMatrix();//CRW from world frame to camera frame.
     cTw <<     CamZt(0), CamZt(1), CamZt(2) ;
     wRc = cRw.inverse();
     iRc = Rcam;
@@ -210,30 +212,87 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     iTc = Tcam;
     wRi = wRc * cRi;
     iRw = wRi.inverse();
-    wTi = -1 * wRc * cRi *iTc - wRc * cTw;                                       
+    wTi = -1 * wRc * cRi *iTc - wRc * cTw;                                        
     MatrixXd ZR(3,3);
     ZR = wRi; 
     cout << "wRc" << endl << wRc <<endl; 
     cout << "cRi" << endl << cRi <<endl;
-    cout << "iTc" << endl << iTc <<endl;
+    cout << "wRi" << endl << wRi <<endl;
     //cout << "|ZR|" << endl << ZR.determinant() <<endl;   
     /*cout << "Angles" << endl << ZR.eulerAngles(1,0,2) <<endl;  */ 
     //Vector3d Angle = ZR.eulerAngles(2, 0, 1);
 
-    MatrixXd Zt(6,1);
+    
+    /*MatrixXd Zt(6,1);
     Zt(0) = wTi(0);
     Zt(1) = wTi(1);
-    Zt(2) = wTi(2);  
- 
-    double roll = atan(-ZR(1,1)/ZR(0,1));
-    double pitch = asin(ZR(2,1));
-    double yaw = atan(-ZR(2,2)/ZR(2,0));
+    Zt(2) = wTi(2);
+/************************2333*************************/
+    //Quaternion<double> Q_ekf_obs= Quaterniond(q_wi.y,-q_wi.z,q_wi.w,q_wi.x).toRotationMatrix();
+   geometry_msgs::Quaternion Q_ekf_obs;
+    Q_ekf_obs.w = q_wi.y();
+    Q_ekf_obs.x = -1*q_wi.z();
+    Q_ekf_obs.y = q_wi.w();
+    Q_ekf_obs.z = q_wi.x(); 
+/************************2333*************************/
+    //float q0=(float)Q_ekf_obs.w();
+    //float q1=(float)Q_ekf_obs.x();
+    //float q2=(float)Q_ekf_obs.y();
+    //float q3=(float)Q_ekf_obs.z();
+    //MatrixXd QQQ(4,1);
+    //QQQ << Q_ekf_obs.w, Q_ekf_obs.x, Q_ekf_obs.y, Q_ekf_obs.z;
+    /*double roll = asin(ZR(2,1));
+    double yaw = atan(-ZR(1,1)/ZR(0,1)); 
+    double pitch = atan(-ZR(2,2)/ZR(2,0));
+    //double yaw2 = atan((2*q1*q2-2*q0*q3)/(2*q0*q0+2*q1*q1-1));
+    //double pitch2 = -asin(2*q2*q3+2*q0*q1);
+    //double roll2 = atan((2*q2*q3-2*q0*q3)/(2*q0*q0+2*q3*q3-1)); 
 
+
+    //double yaw2 = atan((2*Q_ekf_obs.x*Q_ekf_obs.y-2*Q_ekf_obs.w*Q_ekf_obs.z)/(2*Q_ekf_obs.w*Q_ekf_obs.w+2*Q_ekf_obs.x*Q_ekf_obs.x-1));
+    //double pitch2 = -asin(2*Q_ekf_obs.y*Q_ekf_obs.z+2*Q_ekf_obs.w*Q_ekf_obs.x);
+    //double roll2 = atan((2*Q_ekf_obs.y*Q_ekf_obs.z-2*Q_ekf_obs.w*Q_ekf_obs.z)/(2*Q_ekf_obs.w*Q_ekf_obs.w+2*Q_ekf_obs.z*Q_ekf_obs.z-1)); 
     Zt(3) = roll;
     Zt(4) = pitch;
     Zt(5) = yaw;
     cout <<"Zt"<<endl<<Zt<<endl; 
+/**********************************************************************************************************************************************************/
+    MatrixXd R_WorldinCAM(3,3);
+    MatrixXd H_WorldinCAM(4,4);
+    MatrixXd H_CAMinIMU(4,4);
+    Vector3d T_WorldinCAM(3);
+    T_WorldinCAM << CamZt(0), CamZt(1), CamZt(2) ;
+    R_WorldinCAM = Quaterniond(q_wi.w,q_wi.x,q_wi.y,q_wi.z).toRotationMatrix();
+	
+	H_WorldinCAM.col(0) << R_WorldinCAM.col(0), 0;
+	H_WorldinCAM.col(1) << R_WorldinCAM.col(1), 0;
+	H_WorldinCAM.col(2) << R_WorldinCAM.col(2), 0;
+	H_WorldinCAM.col(3) << T_WorldinCAM       , 1;
+	
+    H_CAMinIMU << -1, 0, 0,  0,
+                   0, 1, 0, -0.04,
+                   0, 0,-1, -0.02,
+                   0, 0, 0, 1;
+    MatrixXd H_IMUinWorld(4,4);
+	H_IMUinWorld =  H_WorldinCAM.inverse() * H_CAMinIMU.inverse()  ;//????????????????
+
+	MatrixXd R_IMUinWorld(3,3);
+    Vector3d T_IMUinWorld(3);
+	R_IMUinWorld = H_IMUinWorld.topLeftCorner(3, 3);
+	T_IMUinWorld = H_IMUinWorld.topRightCorner(3, 1);
     
+    MatrixXd Zt(6,1);
+    Zt(0) = T_IMUinWorld(0);
+    Zt(1) = T_IMUinWorld(1);
+    Zt(2) = T_IMUinWorld(2);
+
+    double roll = atan(-R_IMUinWorld(1,1)/R_IMUinWorld(0,1));
+    double pitch = asin(R_IMUinWorld(2,1));
+    double yaw = atan(-R_IMUinWorld(2,2)/R_IMUinWorld(2,0));
+
+    Zt(3) = roll;
+    Zt(4) = pitch;
+    Zt(5) = yaw;
 /********************************************Zt********************************************************/
 
    MatrixXd g(6,1);
@@ -282,10 +341,13 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
 
     
-    AngleAxisd rollAng(Zt(3), Vector3d::UnitX());
-    AngleAxisd pitchAng(Zt(4), Vector3d::UnitY());
-    AngleAxisd yawAng(Zt(5), Vector3d::UnitZ());
-    Quaternion<double> Q_ekf_obs = yawAng * rollAng * pitchAng;
+   // AngleAxisd rollAng(Zt(3), Vector3d::UnitX());
+    //AngleAxisd pitchAng(Zt(4), Vector3d::UnitY());
+    //AngleAxisd yawAng(Zt(5), Vector3d::UnitZ());
+    //Quaternion<double> Q_ekf_obs = yawAng * rollAng * pitchAng;
+
+    
+    
     nav_msgs::Odometry odom_ekf_obs;
     odom_ekf_obs.header.stamp = msg->header.stamp;
     odom_ekf_obs.header.frame_id = "world";
@@ -295,7 +357,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     odom_ekf_obs.pose.pose.orientation.w = Q_ekf_obs.w();
     odom_ekf_obs.pose.pose.orientation.x = Q_ekf_obs.x();
     odom_ekf_obs.pose.pose.orientation.y = Q_ekf_obs.y();
-    odom_ekf_obs.pose.pose.orientation.z = Q_ekfwork.z();
+    odom_ekf_obs.pose.pose.orientation.z = Q_ekf_obs.z();
     pub_odom_ekf_obs.publish(odom_ekf_obs);  
 }
 
