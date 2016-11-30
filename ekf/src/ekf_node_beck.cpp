@@ -45,7 +45,7 @@ MatrixXd cov_ns = MatrixXd::Zero(15, 15);
 VectorXd g_ut(6);
 
 // Initially use a constant, later need to read from the environment
-float g = 9.81;
+float g = 9.82;
 bool IMU_UPDATED = false;
 bool CAMERA_UPDATED = false;
 
@@ -293,8 +293,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// zt(4) = atan2(-R_wi_norm(2, 0), R_wi_norm(2, 2)); // pitch
 		// zt(5) = atan2(-R_wi_norm(0, 1), R_wi_norm(1, 1)); // yaw
 		zt(3) = asin(R_wi(1, 2)); // roll
-		zt(4) = atan2(-R_wi(2, 0), R_wi(2, 2)); // pitch
-		zt(5) = atan2(-R_wi(0, 1), R_wi(1, 1)); // yaw
+		zt(4) = atan2(-R_wi(2, 0) / cos(zt(3)), R_wi(2, 2)) / cos(zt(3)) ; // pitch
+		zt(5) = atan2(-R_wi(0, 1) / cos(zt(3)), R_wi(1, 1)) / cos(zt(3)) ; // yaw
 	}
 
 	if (msg->header.seq == 0) { // first time callback, initialize all messages
@@ -310,12 +310,12 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	double phi = zt(3);
 	double the = zt(4);
 	double psi = zt(5);
-	// if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
-	// if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
-	// if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
-	// if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
-	// if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
-	// if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
+	if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
+	if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
+	if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
+	if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
+	if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
+	if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
 
     #if DEBUG_ODOM
         // cout<<" The x of camera: " << zt(0) <<endl;

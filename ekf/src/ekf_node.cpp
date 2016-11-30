@@ -12,7 +12,7 @@
 #include <math.h>
 
 #define DEBUG_ODOM true
-#define DEBUG_IMU true
+#define DEBUG_IMU false
 #define DEBUG_TF false
 
 using namespace std;
@@ -45,7 +45,7 @@ MatrixXd cov_ns = MatrixXd::Zero(15, 15);
 VectorXd g_ut(6);
 
 // Initially use a constant, later need to read from the environment
-float g = 9.81;
+float g = 9.82;
 bool IMU_UPDATED = false;
 bool CAMERA_UPDATED = false;
 
@@ -118,52 +118,52 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 		x31,
 		x32,
 		x33,
-		wm1*cos(x22) - ng1*cos(x22) - x41*cos(x22) - ng3*sin(x22) + wm3*sin(x22) - x43*sin(x22),
-		-(ng2*cos(x21) - wm2*cos(x21) + x42*cos(x21) - ng3*cos(x22)*sin(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) + ng1*sin(x21)*sin(x22) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
-		-(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
-		(cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - cos(x21)*sin(x23)*(na2 - am2 + x52),
-		(cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52),
-		sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x22)*(na3 - am3 + x53) - cos(x21)*sin(x22)*(na1 - am1 + x51) - g,
-		nbg1,
-		nbg2,
-		nbg3,
-		nba1,
-		nba2,
-		nba3;
+		wm1*cos(x22) - x41*cos(x22) + wm3*sin(x22) - x43*sin(x22),
+		-(- wm2*cos(x21) + x42*cos(x21) + wm3*cos(x22)*sin(x21) - x43*cos(x22)*sin(x21) - wm1*sin(x21)*sin(x22) + x41*sin(x21)*sin(x22))/cos(x21),
+		-(- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21),
+		(cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am3 + x53) - (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am1 + x51) - cos(x21)*sin(x23)*(- am2 + x52),
+		(cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am3 + x53) - cos(x21)*cos(x23)*(- am2 + x52),
+		sin(x21)*(- am2 + x52) - cos(x21)*cos(x22)*(- am3 + x53) - cos(x21)*sin(x22)*(- am1 + x51) - g,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0;
 
 	At <<
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 1, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 1, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 1,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                   wm3*cos(x22) - ng3*cos(x22) - x43*cos(x22) + ng1*sin(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
-		0, 0, 0,                              (ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22))/pow(cos(x21), 2),                      -(sin(x21)*(ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
-		0, 0, 0,                  -(sin(x21)*(ng3*cos(x22) - wm3*cos(x22) + x43*cos(x22) - ng1*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/pow(cos(x21), 2),                                  (ng1*cos(x22) - wm1*cos(x22) + x41*cos(x22) + ng3*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
-		0, 0, 0, sin(x21)*sin(x23)*(na2 - am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(na3 - am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(na1 - am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na1 - am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na3 - am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na1 - am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na3 - am3 + x53) - cos(x21)*cos(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
-		0, 0, 0, cos(x23)*sin(x21)*(na2 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(na1 - am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(na3 - am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(na1 - am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(na3 - am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(na1 - am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(na3 - am3 + x53) + cos(x21)*sin(x23)*(na2 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
-		0, 0, 0,                            cos(x21)*(na2 - am2 + x52) + cos(x22)*sin(x21)*(na3 - am3 + x53) + sin(x21)*sin(x22)*(na1 - am1 + x51),                                                                 cos(x21)*sin(x22)*(na3 - am3 + x53) - cos(x21)*cos(x22)*(na1 - am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0,
-		0, 0, 0,                                                                                                                                 0,                                                                                                                                         0,                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                                0,                  0,                                                0;
+		0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0,                                                   wm3*cos(x22) - x43*cos(x22) - wm1*sin(x22) + x41*sin(x22),                                                                                                                                                                             0, 0, 0, 0,                     -cos(x22),  0,                    -sin(x22),                                                0,                  0,                                                0,
+		0, 0, 0,                              (- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22))/cos(x21) * cos(x21),                      -(sin(x21)*(- wm1*cos(x22) + x41*cos(x22) - wm3*sin(x22) + x43*sin(x22)))/cos(x21),                                                                                                                                                                             0, 0, 0, 0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0,                  -(sin(x21)*(- wm3*cos(x22) + x43*cos(x22) + wm1*sin(x22) - x41*sin(x22)))/cos(x21) * cos(x21),                                  (- wm1*cos(x22) + x41*cos(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
+		0, 0, 0, sin(x21)*sin(x23)*(- am2 + x52) - cos(x21)*cos(x22)*sin(x23)*(- am3 + x53) - cos(x21)*sin(x22)*sin(x23)*(- am1 + x51),   (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am1 + x51) + (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am3 + x53), (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am1 + x51) - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am3 + x53) - cos(x21)*cos(x23)*(- am2 + x52), 0, 0, 0,                             0,  0,                            0, - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
+		0, 0, 0, cos(x23)*sin(x21)*(- am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(- am1 + x51) - cos(x21)*cos(x22)*cos(x23)*(- am3 + x53), - (sin(x22)*sin(x23) + cos(x22)*cos(x23)*sin(x21))*(- am1 + x51) - (cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22))*(- am3 + x53), (cos(x22)*cos(x23) + sin(x21)*sin(x22)*sin(x23))*(- am1 + x51) - (cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23))*(- am3 + x53) + cos(x21)*sin(x23)*(- am2 + x52), 0, 0, 0,                             0,  0,                            0,   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),
+		0, 0, 0,                            cos(x21)*(- am2 + x52) + cos(x22)*sin(x21)*(- am3 + x53) + sin(x21)*sin(x22)*(- am1 + x51),                                                                 cos(x21)*sin(x22)*(- am3 + x53) - cos(x21)*cos(x22)*(- am1 + x51),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
 	Ut <<
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
-	 - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
-	                                                0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,                     -cos(x22),  0,                    -sin(x22), 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0, -(sin(x21)*sin(x22))/cos(x21), -1, (cos(x22)*sin(x21))/cos(x21), 0, 0, 0, 0, 0, 0,
+		0,                  0,                                                0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21), 0, 0, 0, 0, 0, 0,
+	 - cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23), -cos(x21)*sin(x23),   cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+	   cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23), - sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+	                               -cos(x21)*sin(x22),           sin(x21),                               -cos(x21)*cos(x22),             0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 1, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 1, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 0, 0, 0, 1,
+        0,                  0,                                                0,                             0,  0,                            0, 1, 0, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 1, 0, 0, 0, 0,
+        0,                  0,                                                0,                             0,  0,                            0, 0, 0, 1, 0, 0, 0;
 
 	Ft = MatrixXd::Identity(15, 15) + dt * At;
     Vt = dt * Ut;
@@ -205,16 +205,6 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	geometry_msgs::Transform camera_pose_wi_geo;
 	tf::transformTFToMsg(camera_pose_wi, camera_pose_wi_geo);
 
-	cout << "camera_pose_wi_geo transformation from TF is: " << endl;
-	cout << camera_pose_wi_geo.translation.x << endl;
-	cout << camera_pose_wi_geo.translation.y << endl;
-	cout << camera_pose_wi_geo.translation.z << endl;
-	cout << "quaternion from TF is: " << endl;
-	cout << camera_pose_wi_geo.rotation.w << endl;
-	cout << camera_pose_wi_geo.rotation.x << endl;
-	cout << camera_pose_wi_geo.rotation.y << endl;
-	cout << camera_pose_wi_geo.rotation.z << endl;
-
 	/*                     Transformation from Eigen                       */
 	geometry_msgs::Quaternion q_cw = msg->pose.pose.orientation;
 	// camera to tag world
@@ -251,15 +241,26 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	T_wi = H_wi.topRightCorner(3, 1);
 	Quaterniond R_wi_q(R_wi);
 
-	cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
-	cout << T_wi(0) << endl;
-	cout << T_wi(1) << endl;
-	cout << T_wi(2) << endl;
-	cout << "quaternion from Eigen is: " << endl;
-	cout << R_wi_q.w() << endl;
-	cout << R_wi_q.x() << endl;
-	cout << R_wi_q.y() << endl;
-	cout << R_wi_q.z() << endl;
+	#if DEBUG_TF
+		cout << "camera_pose_wi_geo transformation from TF is: " << endl;
+		cout << camera_pose_wi_geo.translation.x << endl;
+		cout << camera_pose_wi_geo.translation.y << endl;
+		cout << camera_pose_wi_geo.translation.z << endl;
+		cout << "quaternion from TF is: " << endl;
+		cout << camera_pose_wi_geo.rotation.w << endl;
+		cout << camera_pose_wi_geo.rotation.x << endl;
+		cout << camera_pose_wi_geo.rotation.y << endl;
+		cout << camera_pose_wi_geo.rotation.z << endl;
+		cout << "camera_pose_wi_geo transformation from Eigen is: " << endl;
+		cout << T_wi(0) << endl;
+		cout << T_wi(1) << endl;
+		cout << T_wi(2) << endl;
+		cout << "quaternion from Eigen is: " << endl;
+		cout << R_wi_q.w() << endl;
+		cout << R_wi_q.x() << endl;
+		cout << R_wi_q.y() << endl;
+		cout << R_wi_q.z() << endl;
+	#endif
 	if (DEBUG_TF) {
 		zt(0) = camera_pose_wi_geo.translation.x;
 		zt(1) = camera_pose_wi_geo.translation.y;
@@ -277,8 +278,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
 		// zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
 		zt(3) = asin(R_wi_tf(1, 2)); // roll
-		zt(4) = atan2(-R_wi_tf(2, 0), R_wi_tf(2, 2)); // pitch
-		zt(5) = atan2(-R_wi_tf(0, 1), R_wi_tf(1, 1)); // yaw
+		zt(4) = atan2(-R_wi_tf(2, 0) / cos(zt(3)), R_wi_tf(2, 2) / cos(zt(3)) ); // pitch
+		zt(5) = atan2(-R_wi_tf(0, 1) / cos(zt(3)), R_wi_tf(1, 1) / cos(zt(3)) ); // yaw
 	}
 	else {
 		// Use the result from Eigen in rviz
@@ -292,8 +293,8 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// zt(4) = atan2(-R_wi_norm(2, 0), R_wi_norm(2, 2)); // pitch
 		// zt(5) = atan2(-R_wi_norm(0, 1), R_wi_norm(1, 1)); // yaw
 		zt(3) = asin(R_wi(1, 2)); // roll
-		zt(4) = atan2(-R_wi(2, 0), R_wi(2, 2)); // pitch
-		zt(5) = atan2(-R_wi(0, 1), R_wi(1, 1)); // yaw
+		zt(4) = atan2(-R_wi(2, 0) / cos(zt(3)), R_wi(2, 2)) / cos(zt(3)) ; // pitch
+		zt(5) = atan2(-R_wi(0, 1) / cos(zt(3)), R_wi(1, 1)) / cos(zt(3)) ; // yaw
 	}
 
 	if (msg->header.seq == 0) { // first time callback, initialize all messages
@@ -309,22 +310,25 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	double phi = zt(3);
 	double the = zt(4);
 	double psi = zt(5);
-	if (phi_ppg - phi >  M_PI) zt(3) += 2 * M_PI;
-	if (phi_ppg - phi < -M_PI) zt(3) -= 2 * M_PI;
-	if (the_ppg - the >  M_PI) zt(4) += 2 * M_PI;
-	if (the_ppg - the < -M_PI) zt(4) -= 2 * M_PI;
-	if (psi_ppg - psi >  M_PI) zt(5) += 2 * M_PI;
-	if (psi_ppg - psi < -M_PI) zt(5) -= 2 * M_PI;
+	if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
+	if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
+	if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
+	if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
+	if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
+	if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
 
     #if DEBUG_ODOM
-        cout<<" The x of camera: " << zt(0) <<endl;
-        cout<<" The y of camera: " << zt(1) <<endl;
-        cout<<" The z of camera: " << zt(2) <<endl;
-        cout<<" The roll of camera in ZXY Euler angle: " << zt(3) <<endl;
-        cout<<" The pitch of camera in ZXY Euler angle: " << zt(4) <<endl;
-        cout<<" The yaw of camera in ZXY Euler angle: " << zt(5) <<endl;
-        cout<<" The pose of camera is in the coordinate frame: " <<  msg->header.frame_id <<endl;
-        cout<<" The twist of camera is in the child frame: " <<  msg->child_frame_id <<endl;
+        // cout<<" The x of camera: " << zt(0) <<endl;
+        // cout<<" The y of camera: " << zt(1) <<endl;
+        // cout<<" The z of camera: " << zt(2) <<endl;
+        // cout<<" The roll of camera in ZXY Euler angle : " << phi <<endl;
+        // cout<<" The pitch of camera in ZXY Euler angle: " << the <<endl;
+        // cout<<" The yaw of camera in ZXY Euler angle  : " << psi <<endl;
+		cout<<" zt(3) : " << zt(3) <<endl;
+        cout<<" zt(4) : " << zt(4) <<endl;
+        cout<<" zt(5) : " << zt(5) <<endl;
+        // cout<<" The pose of camera is in the coordinate frame: " <<  msg->header.frame_id <<endl;
+        // cout<<" The twist of camera is in the child frame: " <<  msg->child_frame_id <<endl;
     #endif
 
     /*     Update, with C and W matrix										  */
@@ -358,7 +362,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ekf_odom.pose.pose.orientation.x = Q_output.x();
 		ekf_odom.pose.pose.orientation.y = Q_output.y();
 		ekf_odom.pose.pose.orientation.z = Q_output.z();
-	} 
+	}
 	else {
 		ekf_odom = *msg;
 	}
@@ -366,10 +370,10 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     odom_pub.publish(ekf_odom);
 
 	#if DEBUG_ODOM
-		cout<<" The Kalman gain is:" << endl << Kt << endl;
-		cout<<" The mean_ns is:" << endl << mean_ns << endl;
-		cout<<" The cov_ns is:" << endl << cov_ns << endl;
-		cout<<" The g_ut is:" << endl << g_ut << endl;
+		// cout<<" The Kalman gain is:" << endl << Kt << endl;
+		// cout<<" The mean_ns is:" << endl << mean_ns << endl;
+		// cout<<" The cov_ns is:" << endl << cov_ns << endl;
+		// cout<<" The g_ut is:" << endl << g_ut << endl;
 		cout<<" The odometry before EKF:" << endl;
         ROS_INFO("Seq: [%d]", msg->header.seq);
 		ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", camera_pose_wi_geo.translation.x,camera_pose_wi_geo.translation.y, camera_pose_wi_geo.translation.z);
@@ -380,7 +384,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
 		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
     #endif
-	cout<<" The end of Odometry callback" << endl << endl;
+	// cout<<" The end of Odometry callback" << endl << endl;
 }
 
 int main(int argc, char **argv)
