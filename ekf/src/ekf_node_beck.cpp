@@ -11,9 +11,10 @@
 #include <tf/transform_datatypes.h>
 #include <math.h>
 
-#define DEBUG_ODOM true
+#define DEBUG_ODOM false
 #define DEBUG_IMU false
-#define DEBUG_TF false
+#define DEBUG_TF true
+#define DEBUG_COV true
 
 using namespace std;
 using namespace Eigen;
@@ -38,9 +39,9 @@ ros::Time last_time;
 VectorXd mean_ps= MatrixXd::Zero(15, 1 );
 VectorXd mean_ba= MatrixXd::Zero(15, 1 );
 VectorXd mean_ns= MatrixXd::Zero(15, 1 );
-MatrixXd cov_ps = MatrixXd::Zero(15, 15);
-MatrixXd cov_ba = MatrixXd::Zero(15, 15);
-MatrixXd cov_ns = MatrixXd::Zero(15, 15);
+MatrixXd cov_ps = MatrixXd::Identity(15, 15);
+MatrixXd cov_ba = MatrixXd::Identity(15, 15);
+MatrixXd cov_ns = MatrixXd::Identity(15, 15);
 /* Observation Model	*/
 VectorXd g_ut(6);
 
@@ -100,13 +101,6 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 	double wm1= msg->angular_velocity.x;
 	double wm2= msg->angular_velocity.y;
 	double wm3= msg->angular_velocity.z;
-	// g_ut << am1, am2, am3, wm1, wm2, wm3;
-	// noise n: linear_acceleration_covariance, angular_velocity_covariance,
-	//          acc bias noise, gyro bias noise
-	double na1= 0 , na2= 0, na3= 0;
-	double ng1= 0 , ng2= 0, ng3= 0;
-	double nba1=0 , nba2=0, nba3=0;
-	double nbg1=0 , nbg2=0, nbg3=0;
 
 	/**************************************************************************/
 	/* updated to f(mu_t_1, u_t, 0), At(mu_t_1, u_t, 0), and Ut               */
@@ -175,9 +169,17 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 		cout<< "After process, the mean_ba became" << endl << mean_ba << endl;
 		cout<< "The cov_ba became" << endl << cov_ba << endl;
 	#endif
+	#if DEBUG_COV
+		ROS_INFO("Imu Seq: [%d]", msg->header.seq);
+		cout<< "the mean_ba (0-5):" << endl << mean_ba.head(6) << endl;
+		// cout<< "The cov_ba[6,6]  :" << endl << cov_ba.topLeftCorner(6, 6) << endl;
+	#endif
 }
 
-
+// store singularity info
+double phi_ppg;
+double the_ppg;
+double psi_ppg;
 void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
 	CAMERA_UPDATED = true;
@@ -218,13 +220,13 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	H_cw.col(3) << T_cw   , 1;
 
 	// IMU to camera frame
-	Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
-    Vector3d T_ic = Vector3d(0, -0.04, -0.02);
+	// Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
+    // Vector3d T_ic = Vector3d(0, -0.04, -0.02);
 	MatrixXd H_ic(4,4);
-	H_ic.col(0) << R_ic.col(0), 0;
-	H_ic.col(1) << R_ic.col(1), 0;
-	H_ic.col(2) << R_ic.col(2), 0;
-	H_ic.col(3) << T_ic   , 1;
+	H_ic << -1, 0,  0,  0,
+			 0, 1,  0, -0.04,
+			 0, 0, -1, -0.02,
+			 0, 0,  0,  1;
 
 	// IMU to tag world
 	// Matrix3d R_iw = R_ic * R_cw;
@@ -274,10 +276,10 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		Matrix3d R_wi_tf = R_wi_quat.toRotationMatrix();
 		// JacobiSVD<MatrixXd> svd_tf(R_wi_tf, ComputeFullU | ComputeFullV);
 		// Matrix3d R_wi_tf_norm = svd_tf.matrixU() * svd_tf.matrixV().transpose();
-		// zt(3) = asin(R_wi_tf_norm(1, 2)); // roll
+		// zt(3) = asin(R_wi_tf_norm(2, 1)); // roll
 		// zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
 		// zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
-		zt(3) = asin(R_wi_tf(1, 2)); // roll
+		zt(3) = asin(R_wi_tf(2, 1)); // roll
 		zt(4) = atan2(-R_wi_tf(2, 0) / cos(zt(3)), R_wi_tf(2, 2) / cos(zt(3)) ); // pitch
 		zt(5) = atan2(-R_wi_tf(0, 1) / cos(zt(3)), R_wi_tf(1, 1) / cos(zt(3)) ); // yaw
 	}
@@ -289,24 +291,27 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		// zt(2) = T_wi(2);
 		// JacobiSVD<MatrixXd> svd(R_wi, ComputeFullU | ComputeFullV);
 		// Matrix3d R_wi_norm = svd.matrixU() * svd.matrixV().transpose();
-		// zt(3) = asin(R_wi_norm(1, 2)); // roll
-		// zt(4) = atan2(-R_wi_norm(2, 0), R_wi_norm(2, 2)); // pitch
-		// zt(5) = atan2(-R_wi_norm(0, 1), R_wi_norm(1, 1)); // yaw
-		zt(3) = asin(R_wi(1, 2)); // roll
+		// zt(3) = asin(R_wi_norm(2, 1)); // roll
+		// zt(4) = asin(-R_wi_norm(0, 2) / cos(zt(3)) ); 
+		// zt(5) = acos( R_wi_norm(1, 1) / cos(zt(3)) );
+		zt(3) = asin(R_wi(2, 1)); // roll
 		zt(4) = atan2(-R_wi(2, 0) / cos(zt(3)), R_wi(2, 2)) / cos(zt(3)) ; // pitch
 		zt(5) = atan2(-R_wi(0, 1) / cos(zt(3)), R_wi(1, 1)) / cos(zt(3)) ; // yaw
+		// zt(4) = asin(-R_wi(0, 2) / cos(zt(3)) );
+		// zt(5) = acos( R_wi(1, 1) / cos(zt(3)) );
 	}
 
 	if (msg->header.seq == 0) { // first time callback, initialize all messages
 		mean_ps << zt, MatrixXd::Zero(9, 1);
 		mean_ba << zt, MatrixXd::Zero(9, 1);
 		mean_ns << zt, MatrixXd::Zero(9, 1);
+		phi_ppg = mean_ba(3);
+		the_ppg = mean_ba(4);
+		psi_ppg = mean_ba(5);
 	}
 
 	// Check if the angle passes the singularity point for ZXY Euler angle
-	double phi_ppg = mean_ba(3);
-	double the_ppg = mean_ba(4);
-	double psi_ppg = mean_ba(5);
+
 	double phi = zt(3);
 	double the = zt(4);
 	double psi = zt(5);
@@ -316,14 +321,17 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
 	if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
 	if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
+	phi_ppg = phi;
+	the_ppg = the;
+	psi_ppg = psi;
 
     #if DEBUG_ODOM
         // cout<<" The x of camera: " << zt(0) <<endl;
         // cout<<" The y of camera: " << zt(1) <<endl;
         // cout<<" The z of camera: " << zt(2) <<endl;
-        // cout<<" The roll of camera in ZXY Euler angle : " << phi <<endl;
-        // cout<<" The pitch of camera in ZXY Euler angle: " << the <<endl;
-        // cout<<" The yaw of camera in ZXY Euler angle  : " << psi <<endl;
+        cout<<" mean_ba(3) : " << mean_ba(3) <<endl;
+        cout<<" mean_ba(4) : " << mean_ba(4) <<endl;
+        cout<<" mean_ba(5) : " << mean_ba(5) <<endl;
 		cout<<" zt(3) : " << zt(3) <<endl;
         cout<<" zt(4) : " << zt(4) <<endl;
         cout<<" zt(5) : " << zt(5) <<endl;
@@ -340,7 +348,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     Kt = cov_ba * Ct.transpose() * ((Ct * cov_ba * Ct.transpose() + Rt).inverse());
 	g_ut << mean_ba(0), mean_ba(1), mean_ba(2), mean_ba(3), mean_ba(4), mean_ba(5);
     mean_ns = mean_ba + Kt * (zt - g_ut);
-    cov_ns  = cov_ba  + Kt * Ct * cov_ba;
+    cov_ns  = cov_ba  - Kt * Ct * cov_ba;
     mean_ps = mean_ns;
     cov_ps  = cov_ns;
 
@@ -362,6 +370,9 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ekf_odom.pose.pose.orientation.x = Q_output.x();
 		ekf_odom.pose.pose.orientation.y = Q_output.y();
 		ekf_odom.pose.pose.orientation.z = Q_output.z();
+		ekf_odom.twist.twist.linear.x = mean_ns(6);
+		ekf_odom.twist.twist.linear.y = mean_ns(7);
+		ekf_odom.twist.twist.linear.z = mean_ns(8);
 	}
 	else {
 		ekf_odom = *msg;
@@ -372,7 +383,7 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	#if DEBUG_ODOM
 		// cout<<" The Kalman gain is:" << endl << Kt << endl;
 		// cout<<" The mean_ns is:" << endl << mean_ns << endl;
-		// cout<<" The cov_ns is:" << endl << cov_ns << endl;
+		cout<<" The cov_ns is:" << endl << cov_ns << endl;
 		// cout<<" The g_ut is:" << endl << g_ut << endl;
 		cout<<" The odometry before EKF:" << endl;
         ROS_INFO("Seq: [%d]", msg->header.seq);
@@ -384,6 +395,11 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", ekf_odom.pose.pose.orientation.x, ekf_odom.pose.pose.orientation.y, ekf_odom.pose.pose.orientation.z, ekf_odom.pose.pose.orientation.w);
 		ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", ekf_odom.twist.twist.linear.x,ekf_odom.twist.twist.angular.z);
     #endif
+	#if DEBUG_COV
+		ROS_INFO("Cam Seq: [%d]", ekf_odom.header.seq);
+		cout<< "the mean_ns (0-5):" << endl << mean_ns.head(6) << endl;
+		// cout<< "The cov_ns[6,6]  :" << endl << cov_ns.topLeftCorner(6, 6) << endl;
+	#endif
 	// cout<<" The end of Odometry callback" << endl << endl;
 }
 
