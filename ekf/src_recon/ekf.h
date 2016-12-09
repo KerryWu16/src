@@ -21,7 +21,7 @@ typedef struct State
 		MatrixXd  var;
 } State;
 
-clase EKF
+class EKF
 {
 	private:
 		// A time sequencied states stored in a stack
@@ -60,12 +60,12 @@ clase EKF
 
 		bool isInit();
 		VectorXd Get_State();
-		ros::TIme Get_Time();
+		ros::Time Get_Time();
 
 		void SetParam(double var_g, double var_a, double var_bg, double var_ba, double var_p, double var_q);
 		void SetInit( VectorXd zt, ros::Time stamp);
-		void IMU_Propagation( VextorXd u, ros::Time stamp);
-		void Odom_Update( VectorXd zt, ros::Time stamps);
+		void IMU_Propagation( VectorXd u, ros::Time stamp);
+		void Odom_Update( VectorXd zt, ros::Time stamp);
 };
 
 #endif

@@ -13,14 +13,14 @@ using namespace std;
 EKF ekf;
 
 ros::Publisher odom_pub;
-ros::Publisher reference_pub;
+// ros::Publisher reference_pub;
 
 void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
 	ros::Time time_imu = msg->header.stamp;
 
 	// store input u: acceleration, angular_velocity
-	VectorXd u = Vector::Zero(6);
+	VectorXd u = VectorXd::Zero(6);
 	u(0) = msg->linear_acceleration.x;
 	u(1) = msg->linear_acceleration.y;
 	u(2) = msg->linear_acceleration.z;
@@ -48,7 +48,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 
     nav_msgs::Odometry ekf_odom;
 	ekf_odom.header.seq = msg->header.seq;
-	ekf_odom.header.stamp = msg->header.stamp;
+	ekf_odom.header.stamp = time_imu;
 	ekf_odom.header.frame_id = "world";
 	ekf_odom.pose.pose.position.x = mean_ns(0);
 	ekf_odom.pose.pose.position.y = mean_ns(1);
@@ -97,17 +97,35 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		ekf.SetInit(zt, time_update);
 		return;
 	}
-	ekf.Odom_Update(zt, time_update);
+
+	
+//	nav_msgs::Odometry reference;
+//    Eigen::Quaterniond Q_ref(R_wi);
+//    reference.header.stamp = time_update;
+//    reference.header.frame_id = "world";
+//    reference.pose.pose.position.x = T_wi(0);
+//    reference.pose.pose.position.y = T_wi(1);
+//    reference.pose.pose.position.z = T_wi(2);
+//    reference.pose.pose.orientation.w = Q_ref.w();
+//    reference.pose.pose.orientation.x = Q_ref.x();
+//    reference.pose.pose.orientation.y = Q_ref.y();
+//    reference.pose.pose.orientation.z = Q_ref.z();
+//    reference_pub.publish(reference);
+
+
+	
+	ekf.Odom_Update(zt, time_update);	
 }
 
-int main(int argc, char const *argv[]) {
-	ros::init(argc, argv, "ekf");
-	ros::NodeHandle n("~");
-	ros::Time::init();
-	ros::Subscriber s1 = n.subscribe("imu", 1000, imu_callback);
-	ros::Subscriber s2 = n.subscribe("tag_odom", 1000, odom_callback);
+int main(int argc, char **argv) 
+{
+    ros::init(argc, argv, "ekf");
+    ros::NodeHandle n("~");
+//	ros::Time::init();
+	ros::Subscriber s1 = n.subscribe("imu", 100, imu_callback);
+	ros::Subscriber s2 = n.subscribe("tag_odom", 100, odom_callback);
 	odom_pub = n.advertise<nav_msgs::Odometry>("ekf_odom", 100);
-	reference_pub = n.advertise<nav_msgs::Odometry>("ref_odom", 100);
+	// reference_pub = n.advertise<nav_msgs::Odometry>("ref_odom", 100);
 
 	// // Q imu covariance matrix; Rt visual odomtry covariance matrix
     // Q.topLeftCorner(6, 6) = 0.01 * Q.topLeftCorner(6, 6);
