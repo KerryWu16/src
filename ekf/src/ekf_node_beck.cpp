@@ -135,7 +135,7 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 		0, 0, 0,                  -(sin(x21)*(0*cos(x22) - wm3*cos(x22) + x43*cos(x22) - 0*sin(x22) + wm1*sin(x22) - x41*sin(x22)))/(cos(x21)*cos(x21)),                                      (0*cos(x22) - wm1*cos(x22) + x41*cos(x22) + 0*sin(x22) - wm3*sin(x22) + x43*sin(x22))/cos(x21),                                                                                                                                                                             0, 0, 0, 0,             sin(x22)/cos(x21),  0,           -cos(x22)/cos(x21),                                                0,                  0,                                                0,
 		0, 0, 0, cos(x21)*sin(x22)*sin(x23)*(0 - am1 + x51) - cos(x21)*cos(x22)*sin(x23)*(0 - am3 + x53) - sin(x21)*sin(x23)*(0 - am2 + x52), (cos(x23)*sin(x22) + cos(x22)*sin(x21)*sin(x23))*(0 - am1 + x51) - (cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23))*(0 - am3 + x53), (cos(x22)*sin(x23) + cos(x23)*sin(x21)*sin(x22))*(0 - am1 + x51) + (sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21))*(0 - am3 + x53) + cos(x21)*cos(x23)*(0 - am2 + x52), 0, 0, 0,                             0,  0,                            0,   sin(x21)*sin(x22)*sin(x23) - cos(x22)*cos(x23),  cos(x21)*sin(x23), - cos(x23)*sin(x22) - cos(x22)*sin(x21)*sin(x23),
 		0, 0, 0, cos(x23)*sin(x21)*(0 - am2 + x52) - cos(x21)*cos(x23)*sin(x22)*(0 - am1 + x51) + cos(x21)*cos(x22)*cos(x23)*(0 - am3 + x53), (sin(x22)*sin(x23) - cos(x22)*cos(x23)*sin(x21))*(0 - am1 + x51) - (cos(x22)*sin(x23) + cos(x23)*sin(x21)*sin(x22))*(0 - am3 + x53), cos(x21)*sin(x23)*(0 - am2 + x52) - (cos(x23)*sin(x22) + cos(x22)*sin(x21)*sin(x23))*(0 - am3 + x53) - (cos(x22)*cos(x23) - sin(x21)*sin(x22)*sin(x23))*(0 - am1 + x51), 0, 0, 0,                             0,  0,                            0, - cos(x22)*sin(x23) - cos(x23)*sin(x21)*sin(x22), -cos(x21)*cos(x23),   cos(x22)*cos(x23)*sin(x21) - sin(x22)*sin(x23),
-		0, 0, 0,                            cos(x22)*sin(x21)*(0 - am3 + x53) - cos(x21)*(0 - am2 + x52) - sin(x21)*sin(x22)*(0 - am1 + x51),                                                               cos(x21)*cos(x22)*(na1 - am1 + x51) + cos(x21)*sin(x22)*(0 - am3 + x53),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                cos(x21)*sin(x22),          -sin(x21),                               -cos(x21)*cos(x22),
+		0, 0, 0,                            cos(x22)*sin(x21)*(0 - am3 + x53) - cos(x21)*(0 - am2 + x52) - sin(x21)*sin(x22)*(0 - am1 + x51),                                                               cos(x21)*cos(x22)*(0 - am1 + x51) + cos(x21)*sin(x22)*(0 - am3 + x53),                                                                                                                                                                             0, 0, 0, 0,                             0,  0,                            0,                                cos(x21)*sin(x22),          -sin(x21),                               -cos(x21)*cos(x22),
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -302,18 +302,18 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 
 	// Check if the angle passes the singularity point for ZXY Euler angle
 
-	double phi = zt(3);
-	double the = zt(4);
-	double psi = zt(5);
-	if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
-	if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
-	if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
-	if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
-	if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
-	if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
-	phi_ppg = phi;
-	the_ppg = the;
-	psi_ppg = psi;
+	// double phi = zt(3);
+	// double the = zt(4);
+	// double psi = zt(5);
+	// if (phi_ppg - phi >  2 * M_PI) { zt(3) += 2 * M_PI; cout<<" phi changes up   2*pi: " << phi << endl; }
+	// if (phi_ppg - phi < -2 * M_PI) { zt(3) -= 2 * M_PI; cout<<" phi changes down 2*pi: " << phi << endl; }
+	// if (the_ppg - the >  2 * M_PI) { zt(4) += 2 * M_PI; cout<<" the changes up   2*pi: " << the << endl; }
+	// if (the_ppg - the < -2 * M_PI) { zt(4) -= 2 * M_PI; cout<<" the changes down 2*pi: " << the << endl; }
+	// if (psi_ppg - psi >  2 * M_PI) { zt(5) += 2 * M_PI; cout<<" psi changes up   2*pi: " << psi << endl; }
+	// if (psi_ppg - psi < -2 * M_PI) { zt(5) -= 2 * M_PI; cout<<" psi changes down 2*pi: " << psi << endl; }
+	// phi_ppg = phi;
+	// the_ppg = the;
+	// psi_ppg = psi;
 
     #if DEBUG_ODOM
         // cout<<" The x of camera: " << zt(0) <<endl;
