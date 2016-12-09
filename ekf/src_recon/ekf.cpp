@@ -13,6 +13,8 @@ EKF::EKF()
 	I15 = MatrixXd::Identity(15, 15);
 }
 
+EKF::~EKF() {}
+
 bool EKF::isInit()
 {
 	return init;
@@ -58,9 +60,9 @@ void EKF::SetInit( VectorXd zt, ros::Time stamp)
 	MatrixXd var_init  = MatrixXd::Zero(15, 15);
 
 	mean_init.head(6)  = zt;
-	rpy_ps(0) = zt(3);
-	rpy_ps(1) = zt(4);
-	rpy_ps(2) = zt(5);
+	// rpy_ps(0) = zt(3);
+	// rpy_ps(1) = zt(4);
+	// rpy_ps(2) = zt(5);
 	State state_init;
 	state_init.mean = mean_init;
 	state_init.var  = var_init;
@@ -203,6 +205,8 @@ void EKF::IMU_Propagation( VectorXd u, ros::Time stamp)
 	StateStack.push_back(state_ns);
 }
 
+// Store present state roll pitch yaw
+Vector3d rpy_ps;
 /*	Camera update and time stamp sequencing at the same function	*/
 void EKF::Odom_Update( VectorXd zt, ros::Time stamp)
 {

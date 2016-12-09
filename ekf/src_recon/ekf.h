@@ -34,9 +34,6 @@ class EKF
 
 		Vector3d g;
 
-		// Store present state roll pitch yaw
-		Vector3d rpy_ps;
-
 		// Q: x^ = f(x, u, n), 	n~N(0, Q), process model Gaussian white noise covariance;
 		// Rt: z = g(x, v), 	v~N(0, Rt),observation Gaussian white noise covariance;
 		MatrixXd Q,	 R, I3, I15;
@@ -57,6 +54,7 @@ class EKF
 
 	public:
 		EKF();
+		~EKF();
 
 		bool isInit();
 		VectorXd Get_State();
