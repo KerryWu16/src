@@ -10,11 +10,12 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <math.h>
+#include "pose.h"
 
 #define DEBUG_ODOM false
 #define DEBUG_IMU false
-#define DEBUG_TF true
-#define DEBUG_COV true
+#define DEBUG_TF false
+#define DEBUG_COV false
 
 using namespace std;
 using namespace Eigen;
@@ -166,8 +167,8 @@ void imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     mean_ba = mean_ps + dt * f_t_1;
     cov_ba = Ft * cov_ps * Ft.transpose() + Vt * Q * Vt.transpose();
 	#if DEBUG_IMU
-		cout<< "After process, the mean_ba became" << endl << mean_ba << endl;
-		cout<< "The cov_ba became" << endl << cov_ba << endl;
+		// cout<< "After process, the mean_ba became" << endl << mean_ba << endl;
+		// cout<< "The cov_ba became" << endl << cov_ba << endl;
 	#endif
 	#if DEBUG_COV
 		ROS_INFO("Imu Seq: [%d]", msg->header.seq);
@@ -213,37 +214,39 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 	Matrix3d R_cw = Quaterniond(q_cw.w, q_cw.x, q_cw.y, q_cw.z).toRotationMatrix();
 	Vector3d T_cw;
 	T_cw << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
-	MatrixXd H_cw(4,4);
-	H_cw.col(0) << R_cw.col(0), 0;
-	H_cw.col(1) << R_cw.col(1), 0;
-	H_cw.col(2) << R_cw.col(2), 0;
-	H_cw.col(3) << T_cw   , 1;
+//	MatrixXd H_cw(4,4);
+//	H_cw.col(0) << R_cw.col(0), 0;
+//	H_cw.col(1) << R_cw.col(1), 0;
+//	H_cw.col(2) << R_cw.col(2), 0;
+//	H_cw.col(3) << T_cw   , 1;
 
 	// IMU to camera frame
-	// Matrix3d R_ic = Quaterniond(0, 0, -1, 0).toRotationMatrix();
-    // Vector3d T_ic = Vector3d(0, -0.04, -0.02);
-	MatrixXd H_ic(4,4);
-	H_ic << -1, 0,  0,  0,
-			 0, 1,  0, -0.04,
-			 0, 0, -1, -0.02,
-			 0, 0,  0,  1;
+	Matrix3d R_ic = Quaterniond(0, 0, 1, 0).toRotationMatrix();
+    Vector3d T_ic = Vector3d(0, -0.04, -0.02);
+//	MatrixXd H_ic(4,4);
+//	H_ic << -1, 0,  0,  0,
+//			 0, 1,  0, -0.04,
+//			 0, 0, -1, -0.02,
+//			 0, 0,  0,  1;
 
 	// IMU to tag world
 	// Matrix3d R_iw = R_ic * R_cw;
 	// Vector3d T_iw = R_ic * T_cw + T_ic;
 
 	// tag world to IMU
-	MatrixXd H_wi(4,4);
-	H_wi = H_cw.inverse() * H_ic.inverse();
+//	MatrixXd H_wi(4,4);
+//	H_wi = H_ic.inverse() * H_cw.inverse();
 	// Matrix3d R_wi = R_iw.inverse();
 	// Vector3d T_wi = -R_wi*T_iw;
 	Matrix3d R_wi;
 	Vector3d T_wi;
-	R_wi = H_wi.topLeftCorner(3, 3);
-	T_wi = H_wi.topRightCorner(3, 1);
-	Quaterniond R_wi_q(R_wi);
+	R_wi =  R_cw.transpose() *  R_ic.transpose();
+	T_wi = -R_cw.transpose() * (R_ic.transpose() * T_ic + T_cw);
+//	R_wi = H_wi.topLeftCorner(3, 3);
+//	T_wi = H_wi.topRightCorner(3, 1);
 
 	#if DEBUG_TF
+		Quaterniond R_wi_q(R_wi);
 		cout << "camera_pose_wi_geo transformation from TF is: " << endl;
 		cout << camera_pose_wi_geo.translation.x << endl;
 		cout << camera_pose_wi_geo.translation.y << endl;
@@ -274,31 +277,18 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		R_wi_quat.y() = camera_pose_wi_geo.rotation.y;
 		R_wi_quat.z() = camera_pose_wi_geo.rotation.z;
 		Matrix3d R_wi_tf = R_wi_quat.toRotationMatrix();
-		// JacobiSVD<MatrixXd> svd_tf(R_wi_tf, ComputeFullU | ComputeFullV);
-		// Matrix3d R_wi_tf_norm = svd_tf.matrixU() * svd_tf.matrixV().transpose();
-		// zt(3) = asin(R_wi_tf_norm(2, 1)); // roll
-		// zt(4) = atan2(-R_wi_tf_norm(2, 0), R_wi_tf_norm(2, 2)); // pitch
-		// zt(5) = atan2(-R_wi_tf_norm(0, 1), R_wi_tf_norm(1, 1)); // yaw
 		zt(3) = asin(R_wi_tf(2, 1)); // roll
 		zt(4) = atan2(-R_wi_tf(2, 0) / cos(zt(3)), R_wi_tf(2, 2) / cos(zt(3)) ); // pitch
 		zt(5) = atan2(-R_wi_tf(0, 1) / cos(zt(3)), R_wi_tf(1, 1) / cos(zt(3)) ); // yaw
 	}
 	else {
 		// Use the result from Eigen in rviz
-		zt.head(3) = T_wi;
-		// zt(0) = T_wi(0);
-		// zt(1) = T_wi(1);
-		// zt(2) = T_wi(2);
-		// JacobiSVD<MatrixXd> svd(R_wi, ComputeFullU | ComputeFullV);
-		// Matrix3d R_wi_norm = svd.matrixU() * svd.matrixV().transpose();
-		// zt(3) = asin(R_wi_norm(2, 1)); // roll
-		// zt(4) = asin(-R_wi_norm(0, 2) / cos(zt(3)) ); 
-		// zt(5) = acos( R_wi_norm(1, 1) / cos(zt(3)) );
-		zt(3) = asin(R_wi(2, 1)); // roll
-		zt(4) = atan2(-R_wi(2, 0) / cos(zt(3)), R_wi(2, 2)) / cos(zt(3)) ; // pitch
-		zt(5) = atan2(-R_wi(0, 1) / cos(zt(3)), R_wi(1, 1)) / cos(zt(3)) ; // yaw
-		// zt(4) = asin(-R_wi(0, 2) / cos(zt(3)) );
-		// zt(5) = acos( R_wi(1, 1) / cos(zt(3)) );
+		Vector3d rpy_wi = R_to_rpy(R_wi);
+		zt << T_wi, rpy_wi;
+//		zt.head(3) = T_wi;
+//		zt(3) = asin(R_wi(2, 1)); // roll
+//		zt(4) = atan2(-R_wi(2, 0) / cos(zt(3)), R_wi(2, 2)) / cos(zt(3)) ; // pitch
+//		zt(5) = atan2(-R_wi(0, 1) / cos(zt(3)), R_wi(1, 1)) / cos(zt(3)) ; // yaw
 	}
 
 	if (msg->header.seq == 0) { // first time callback, initialize all messages
@@ -352,11 +342,13 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
     mean_ps = mean_ns;
     cov_ps  = cov_ns;
 
-    AngleAxisd rollAngle(mean_ns(3), Vector3d::UnitX());
-    AngleAxisd pitchAngle(mean_ns(4), Vector3d::UnitY());
-    AngleAxisd yawAngle(mean_ns(5), Vector3d::UnitZ());
-
-    Quaternion<double> Q_output = yawAngle * rollAngle * pitchAngle;
+	// 2016.12.8 reconstruction
+	Vector3d X_rpy;
+	X_rpy(0) = mean_ns(3);
+	X_rpy(1) = mean_ns(4);
+	X_rpy(2) = mean_ns(5);
+	Quaterniond Q_output;
+	Q_output = rpy_to_R(X_rpy);
 
     nav_msgs::Odometry ekf_odom;
 	if	(IMU_UPDATED) {
