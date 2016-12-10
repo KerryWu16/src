@@ -36,3 +36,4 @@
 
 # bag file
 *.bag
+.DS_Store
