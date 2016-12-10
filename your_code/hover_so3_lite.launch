@@ -20,7 +20,7 @@
         <param name="Dy" type="double" value="1.0"/>
         <param name="Dz" type="double" value="1.0"/>
         <param name="Mass" type="double" value="1.2"/>
-        <param name="ThrustGain" type="double" value="36.0"/>
+        <param name="ThrustGain" type="double" value="30.0"/>
     </node>
 
     <node pkg="mocap_optitrack" type="mocap_node" name="mocap_node"

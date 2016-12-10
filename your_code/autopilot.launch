@@ -1,0 +1,127 @@
+<launch>
+
+    <!-- Common Interface -->
+    <arg name="device" default = "25001559"/>
+    <arg name="rate" default="30"/>
+
+    <!-- Camera Settings -->
+    <arg name="serial" default="$(arg device)"/>
+    <arg name="camera_name" default="mv_$(arg serial)"/>
+    <arg name="camera" default="$(arg camera_name)"/>
+    <arg name="frame_id" default="$(arg camera)"/>
+    <arg name="calib_url" default="file://$(find bluefox2)/cfg/ost.yaml"/>
+    <arg name="fps" default="$(arg rate)"/>
+
+    <arg name="idpf" default="0"/>
+    <arg name="aec" default="true"/>
+    <arg name="expose_us" default="8000"/>
+    <arg name="agc" default="true"/>
+    <arg name="gain_db" default="0.0"/>
+    <arg name="cbm" default="3"/>
+    <arg name="ctm" default="1"/>
+    <arg name="dcfm" default="0"/>
+    <arg name="hdr" default="false"/>
+    <arg name="wbp" default="-1"/>
+    <arg name="request" default="0"/>
+    <arg name="mm" default="0"/>
+    <arg name="jpeg_quality" default="80"/>
+
+    <!-- Node Settings -->
+    <arg name="output" default="screen"/>
+    <arg name="proc" default="false"/>
+    <arg name="view" default="false"/>
+    <arg name="calib" default="false"/>
+
+    <!-- Node -->
+    <node pkg="bluefox2" type="single_node" name="$(arg camera)" output="$(arg output)">
+        <param name="identifier" type="string" value="$(arg serial)"/>
+        <param name="frame_id" type="string" value="$(arg frame_id)"/>
+        <param name="camera_name" type="string" value="$(arg camera_name)"/>
+        <param name="calib_url" type="string" value="$(arg calib_url)"/>
+        <param name="fps" type="double" value="$(arg fps)"/>
+        <param name="idpf" type="int" value="$(arg idpf)"/>
+        <param name="aec" type="bool" value="$(arg aec)"/>
+        <param name="expose_us" type="int" value="$(arg expose_us)"/>
+        <param name="agc" type="bool" value="$(arg aec)"/>
+        <param name="gain_db" type="double" value="$(arg gain_db)"/>
+        <param name="cbm" type="int" value="$(arg cbm)"/>
+        <param name="ctm" type="int" value="$(arg ctm)"/>
+        <param name="dcfm" type="int" value="$(arg dcfm)"/>
+        <param name="hdr" type="bool" value="$(arg hdr)"/>
+        <param name="wbp" type="int" value="$(arg wbp)"/>
+        <param name="request" type="int" value="$(arg request)"/>
+        <param name="mm" type="int" value="$(arg mm)"/>
+        <param name="image_raw/compressed/jpeg_quality" type="int" value="$(arg jpeg_quality)"/>
+    </node>
+
+    <!-- Proc -->
+    <node if="$(arg proc)"
+        pkg="image_proc" type="image_proc" name="image_proc" ns="$(arg camera)">
+    </node>
+
+    <!-- View -->
+    <arg name="image" default="image_raw"/>
+    <node if="$(arg view)"
+        pkg="image_view" type="image_view" name="viewer" ns="$(arg camera)"
+        args="image:=$(arg image)" output="$(arg output)">
+    </node>
+
+    <!-- Calib -->
+    <group if="$(arg calib)">
+        <arg name="pattern" default="chessboard"/>
+        <arg name="size"/>
+        <arg name="square"/>
+        <arg name="num_dist_coeff" default="2"/>
+        <node pkg="camera_calibration" type="cameracalibrator.py"
+            name="calibrator" output="screen"
+            args="-p $(arg pattern) -s $(arg size) -q $(arg square)
+            -k $(arg num_dist_coeff)
+            image:=/$(arg camera)/image_raw camera:=/$(arg camera)">
+        </node>
+    </group>
+    <node pkg="mavlink_message" type="mavlink_message" name="mavlink" output="screen">
+    </node>
+
+    <node pkg="pos_cmd_generator" type="pos_cmd_generator" name="pos_cmd_generator" output="screen">
+        <rosparam file="$(find pos_cmd_generator)/config/set_pos_param.yaml"/>
+        <remap from="~odom" to="/ekf/ekf_odom"/>
+        <remap from="~sonar_dis" to="/sonar_dis/sonar_dis"/> 
+        <remap from="~tera" to="/teraranger/timeofflight"/> 
+        <remap from="~auto_cmd" to="/trajectory_generator/position_cmd"/>
+    </node>
+
+    <node pkg="so3_controller" type="so3_control_lite" name="so3_control" output="screen">
+        <remap from="~odom" to="/ekf/ekf_odom"/>
+        <remap from="~des_pos" to="/pos_cmd_generator/des_pos"/>
+        <param name="Px" type="double" value="5.0"/>
+        <param name="Py" type="double" value="5.0"/>
+        <param name="Pz" type="double" value="5.0"/>
+        <param name="Dx" type="double" value="1.0"/>
+        <param name="Dy" type="double" value="1.0"/>
+        <param name="Dz" type="double" value="1.0"/>
+        <param name="Mass" type="double" value="1.2"/>
+        <param name="ThrustGain" type="double" value="30.0"/>
+    </node>
+
+    <node pkg="ekf" type="ekf" name="ekf" output="screen">
+		<remap from="~imu" to="/mavlink/imu_standard"/>
+        <remap from="~tag_odom" to="/tag_detector/odom_ref"/>
+    </node>
+
+    <node pkg="tag_detector" type="tag_detector" name="tag_detector" output="log">
+        <remap from="~image_raw" to="/mv_25001559/image_raw"/> 
+        <param name="cam_cal_file" type="string" value="$(find ekf)/config/25001559.yml"/> 
+        <param name="board_config_file" type="string" value="$(find tag_detector)/config/a.yml"/> 
+    </node>
+
+    <node pkg="mocap_optitrack" type="mocap_node" name="mocap_node"
+        respawn="false" launch-prefix="" required="true">
+        <rosparam file="$(find mocap_optitrack)/config/mocap.yaml" command="load" />
+    </node>
+
+    <node pkg="pos_vel_mocap" type="pos_vel_mocap" name="monocular_ukf" output="screen">
+        <remap from="~pose" to="/Robot_1/pose"/>
+    </node>
+	
+    
+</launch>
