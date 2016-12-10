@@ -98,44 +98,22 @@ void odom_callback(const nav_msgs::Odometry::ConstPtr &msg)
 		return;
 	}
 
-	
-//	nav_msgs::Odometry reference;
-//    Eigen::Quaterniond Q_ref(R_wi);
-//    reference.header.stamp = time_update;
-//    reference.header.frame_id = "world";
-//    reference.pose.pose.position.x = T_wi(0);
-//    reference.pose.pose.position.y = T_wi(1);
-//    reference.pose.pose.position.z = T_wi(2);
-//    reference.pose.pose.orientation.w = Q_ref.w();
-//    reference.pose.pose.orientation.x = Q_ref.x();
-//    reference.pose.pose.orientation.y = Q_ref.y();
-//    reference.pose.pose.orientation.z = Q_ref.z();
-//    reference_pub.publish(reference);
-
-
-	
-	ekf.Odom_Update(zt, time_update);	
+	ekf.Odom_Update(zt, time_update);
 }
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
     ros::init(argc, argv, "ekf");
     ros::NodeHandle n("~");
-//	ros::Time::init();
+
+	double var_g = 0.01, var_a = 0.01, var_bg = 0.01, var_ba = 0.01;
+	double var_p = 0.5, var_q = 0.5;
+	ekf.SetParam(var_g, var_a, var_bg, var_ba, var_p, var_q);
+
 	ros::Subscriber s1 = n.subscribe("imu", 100, imu_callback);
 	ros::Subscriber s2 = n.subscribe("tag_odom", 100, odom_callback);
 	odom_pub = n.advertise<nav_msgs::Odometry>("ekf_odom", 100);
 	// reference_pub = n.advertise<nav_msgs::Odometry>("ref_odom", 100);
-
-	// // Q imu covariance matrix; Rt visual odomtry covariance matrix
-    // Q.topLeftCorner(6, 6) = 0.01 * Q.topLeftCorner(6, 6);
-    // Q.bottomRightCorner(6, 6) = 0.01 * Q.bottomRightCorner(6, 6);
-    // Rt.topLeftCorner(3, 3) = 0.5 * Rt.topLeftCorner(3, 3);
-    // Rt.bottomRightCorner(3, 3) = 0.5 * Rt.bottomRightCorner(3, 3);
-    // Rt.bottomRightCorner(1, 1) = 0.1 * Rt.bottomRightCorner(1, 1);
-	double var_g = 0.01, var_a = 0.01, var_bg = 0.01, var_ba = 0.01;
-	double var_p = 0.5, var_q = 0.5;
-	ekf.SetParam(var_g, var_a, var_bg, var_ba, var_p, var_q);
 
 	ros::spin();
 	return 0;

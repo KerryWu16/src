@@ -147,10 +147,10 @@ void EKF::IMU_Propagation( VectorXd u, ros::Time stamp)
 */
 
     Vector3d X2, X3, X4, X5;
-    X2 = mean_ps.segment<3>(3); 
-    X3 = mean_ps.segment<3>(6); 
-    X4 = mean_ps.segment<3>(9); 
-    X5 = mean_ps.segment<3>(12); 
+    X2 = mean_ps.segment<3>(3);
+    X3 = mean_ps.segment<3>(6);
+    X4 = mean_ps.segment<3>(9);
+    X5 = mean_ps.segment<3>(12);
     Vector3d rpy = X2;
     double fai = rpy(0), theta = rpy(1), sai = rpy(2);
     Vector3d w   = u.segment<3>(0) - X4;
@@ -165,7 +165,7 @@ void EKF::IMU_Propagation( VectorXd u, ros::Time stamp)
             -sin(theta)/cos(fai),              0,               cos(theta)/cos(fai);
 
     Rot = rpy_to_R(rpy);
-   
+
     Ginv_w_dot << 0,                                                                w(2)*cos(theta) - w(0)*sin(theta),                      0,
                 -(w(2)*cos(theta) - w(0)*sin(theta))/pow(cos(fai),2),              (sin(fai)*(w(0)*cos(theta) + w(2)*sin(theta)))/cos(fai), 0,
                  (sin(fai)*(w(2)*cos(theta) - w(0)*sin(theta)))/pow(cos(fai),2),  -(w(0)*cos(theta) + w(2)*sin(theta))/cos(fai),            0;
@@ -183,7 +183,7 @@ void EKF::IMU_Propagation( VectorXd u, ros::Time stamp)
     Ut.block(3, 0, 3, 3) = -G.inverse();
     Ut.block(6, 3, 3, 3) = -Rot;
     Ut.block(9, 6, 3, 3) = I3;
-    Ut.block(12,9, 3, 3) = I3;	
+    Ut.block(12,9, 3, 3) = I3;
 
     VectorXd xdot = Eigen::VectorXd::Zero(15);
     xdot.segment(0, 3) = X3;
@@ -218,7 +218,7 @@ void EKF::Odom_Update( VectorXd zt, ros::Time stamp)
 	// Sync the camera time stamp to IMU
 	state_ps = StateStack[StateStack.size() - 1];
 	for (itr = StateStack.begin(); itr != StateStack.end(); itr++) {
-		if (itr->stamp >= stamp) {
+		if (itr->stamp > stamp || itr->stamp == stamp) {
 			state_ps = *(itr - 1);
 			StateStackFuture.assign(itr, StateStack.end());
 			break;
@@ -230,16 +230,14 @@ void EKF::Odom_Update( VectorXd zt, ros::Time stamp)
 	VectorXd mean_ps = state_ps.mean;
 	MatrixXd var_ps  = state_ps.var;
 	MatrixXd K_step = MatrixXd::Zero(6, 6);
-	MatrixXd Kt = MatrixXd::Zero(15, 6);
+	MatrixXd Kt 	= MatrixXd::Zero(15, 6);
 	K_step = Ct * var_ps * (Ct.transpose()) + Wt * R * (Wt.transpose());
 	Kt = var_ps * (Ct.transpose()) * (K_step.inverse());
 
 	// Check if the Euler angle cross the singularity
-	for(int i=3;i<6;i++) {
-		if(abs(rpy_ps(i-3)-zt(i))>M_PI){
-			if(zt(i)<0) zt(i) = 2* M_PI + zt(i);
-			else zt(i) = -2* M_PI + zt(i);
-		}
+	for(int i=3; i<6; i++) {
+		if      ( (rpy_ps(i-3) - zt(i)) >  M_PI) { zt(i) += 2* M_PI; }
+		else if ( (rpy_ps(i-3) - zt(i)) < -M_PI) { zt(i) -= 2* M_PI; }
 	}
 	rpy_ps(0) = zt(3);
 	rpy_ps(1) = zt(4);
